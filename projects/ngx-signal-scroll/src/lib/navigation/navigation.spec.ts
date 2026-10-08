@@ -389,3 +389,20 @@ it('scrolls only the selected container without moving its ancestors', () => {
   expect(container.scrollTo).toHaveBeenCalledWith({ top: 160, behavior: 'smooth' });
   expect(target.scrollIntoView).not.toHaveBeenCalled();
 });
+
+it('uses explicitly selected anchors and root viewport coordinates in the facade', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const first = element('first', 16);
+  element('unselected', 0);
+  const root = document.documentElement;
+  root.getBoundingClientRect = () => rect(-500);
+  const provider = TestBed.inject(NearestAnchorProvider);
+  expect(provider.getNearestAnchor({ anchors: [first], scrollable: root, headerOffset: 16 })).toBe(
+    'first',
+  );
+  expect(
+    provider.getNearestAnchor({ anchors: [first], scrollable: document.body, headerOffset: 16 }),
+  ).toBe('first');
+  expect(provider.getNearestAnchor({ anchors: [], scrollable: root })).toBeUndefined();
+  Reflect.deleteProperty(root, 'getBoundingClientRect');
+});

@@ -1,22 +1,14 @@
-import { Component, ElementRef, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { delay, map, of, timer } from 'rxjs';
 import { ScrollOptionsPanel, VisibilityMode } from './scroll-options';
-import {
-  linkedRouteFragment,
-  NearestAnchorProvider,
-  NearestAnchorScrollHook,
-  PreserveVisibleAnchorOnResize,
-  ScrollService,
-  ScrollToFragmentOnFirstDataDirective,
-  ScrollToFragmentOnDataChangeDirective,
-} from '@devzwo/ngx-magic-scroll';
+import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scroll';
 
 @Component({
-  imports: [NearestAnchorScrollHook, ScrollOptionsPanel],
-  providers: [NearestAnchorProvider],
+  imports: [MagicScrollDirective, ScrollOptionsPanel],
+  providers: [provideMagicScroll({ anchorPrefix: 'kapitel-' })],
   template: `<h1>Dokument · Anker synchronisieren</h1>
     <p>Scrollen aktualisiert den aktiven Abschnitt und das URL-Fragment.</p>
     <app-scroll-options
@@ -35,17 +27,10 @@ import {
       }
     </nav>
     <p>
-      Aktiver Anker: <output>{{ fragment() }}</output>
+      Aktiver Anker: <output>{{ scroll.activeAnchor() }}</output>
     </p>
     <div class="viewport" #viewport>
-      <div
-        appNearestAnchorScrollHook
-        [selectorPrefix]="onlyPrefixed() ? 'kapitel-' : ''"
-        [debounceTime]="debounceTime()"
-        headerSelector=""
-        [headerOffset]="offset()"
-        (appNearestAnchorScrollHook)="fragment.set($event)"
-      >
+      <div magicScroll #scroll="magicScroll" [scrollOptions]="options()">
         @for (id of sections; track id) {
           <section [id]="id">
             <h2>{{ id }}</h2>
@@ -58,22 +43,22 @@ import {
 })
 export class DocumentExample {
   readonly sections = ['kapitel-1', 'kapitel-2', 'kapitel-3', 'kapitel-4', 'kapitel-5'];
-  readonly fragment = linkedRouteFragment();
   readonly behavior = signal<ScrollBehavior>('instant');
   readonly offset = signal(0);
   readonly visibility = signal<VisibilityMode>('none');
   readonly debounceTime = signal(500);
   readonly onlyPrefixed = signal(true);
   readonly result = signal('Ein Ziel wählen oder im Dokument scrollen.');
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly scroll = inject(ScrollService);
+  private readonly scroll = viewChild.required(MagicScrollDirective);
+  readonly options = computed(() => ({
+    behavior: { interaction: this.behavior() },
+    headerOffset: this.offset(),
+    ignoreWhenInView: this.visibility(),
+    debounceTime: this.debounceTime(),
+    anchorPrefix: this.onlyPrefixed() ? undefined : '',
+  }));
   jump(id: string) {
-    const executed = this.scroll.scroll(id, {
-      scrollable: this.host.nativeElement.querySelector<HTMLElement>('.viewport')!,
-      topOffset: this.offset(),
-      behavior: this.behavior(),
-      ignoreWhenInView: this.visibility(),
-    });
+    const executed = this.scroll().scrollTo(id);
     this.result.set(
       executed ? 'Scrollen ausgeführt.' : 'Scrollen übersprungen: Das Ziel ist bereits sichtbar.',
     );
@@ -81,14 +66,8 @@ export class DocumentExample {
 }
 
 @Component({
-  imports: [
-    RouterLink,
-    ScrollOptionsPanel,
-    NearestAnchorScrollHook,
-    ScrollToFragmentOnFirstDataDirective,
-    PreserveVisibleAnchorOnResize,
-  ],
-  providers: [NearestAnchorProvider],
+  imports: [RouterLink, ScrollOptionsPanel, MagicScrollDirective],
+  providers: [provideMagicScroll({ anchorPrefix: 'eintrag-' })],
   template: `<h1>Navigation · Position restaurieren</h1>
     <p>
       Ein Detail öffnen und mit dem Browser zurückkehren. Die Liste lädt erneut asynchron und
@@ -124,19 +103,7 @@ export class DocumentExample {
       <button (click)="resource.reload()">Liste neu laden</button>
     </details>
     <div class="viewport">
-      <div
-        appNearestAnchorScrollHook
-        selectorPrefix="eintrag-"
-        headerSelector=""
-        [headerOffset]="offset()"
-        (appNearestAnchorScrollHook)="fragment.set($event)"
-        [appScrollingOnFirstData]="source"
-        [onlyOnceScrollBehavior]="behavior()"
-        [onlyOnceTopOffset]="offset()"
-        appPreserveVisibleAnchorOnResize
-        [topOffset]="offset()"
-        preserveSelectorPrefix="eintrag-"
-      >
+      <div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
         @if (resource.isLoading()) {
           <p role="status">Lädt…</p>
         }
@@ -179,7 +146,6 @@ export class NavigationExample {
       replaceUrl: true,
     });
   }
-  readonly fragment = linkedRouteFragment();
   readonly loadDelay = signal(
     Math.max(0, Math.min(5000, Number(this.route.snapshot.queryParamMap.get('delay')) || 150)),
   );
@@ -196,10 +162,10 @@ export class NavigationExample {
     },
   });
   readonly entries = () => (this.resource.hasValue() ? this.resource.value() : []);
-  readonly source = {
-    data: () => (this.resource.hasValue() ? this.resource.value() : undefined),
-    isLoading: this.resource.isLoading,
-  };
+  readonly options = computed(() => ({
+    behavior: { restoration: this.behavior(), interaction: this.behavior() },
+    headerOffset: this.offset(),
+  }));
 }
 
 @Component({
@@ -220,16 +186,8 @@ export class DetailExample {
 }
 
 @Component({
-  imports: [
-    MatSidenavModule,
-    RouterLink,
-    ScrollOptionsPanel,
-    NearestAnchorScrollHook,
-    ScrollToFragmentOnFirstDataDirective,
-    ScrollToFragmentOnDataChangeDirective,
-    PreserveVisibleAnchorOnResize,
-  ],
-  providers: [NearestAnchorProvider],
+  imports: [MatSidenavModule, RouterLink, ScrollOptionsPanel, MagicScrollDirective],
+  providers: [provideMagicScroll({ anchorPrefix: 'antrag-card-' })],
   styles: ['mat-drawer-content { overflow-anchor: none; }'],
   template: `<h1>Antragsübersicht · Material Drawer</h1>
     <p>
@@ -257,22 +215,7 @@ export class DetailExample {
         </nav></mat-drawer
       >
       <mat-drawer-content
-        ><div
-          appNearestAnchorScrollHook
-          selectorPrefix="antrag-card-"
-          headerSelector=""
-          [headerOffset]="offset()"
-          (appNearestAnchorScrollHook)="fragment.set($event)"
-          [appScrollingOnFirstData]="source"
-          [onlyOnceScrollBehavior]="behavior()"
-          [onlyOnceTopOffset]="offset()"
-          [appScrollingOnDataChange]="changesSource"
-          [skipFirstScrollBehavior]="behavior()"
-          [skipFirstTopOffset]="offset()"
-          appPreserveVisibleAnchorOnResize
-          [topOffset]="offset()"
-          preserveSelectorPrefix="antrag-card-"
-        >
+        ><div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
           @if (resource.isLoading()) {
             <p role="status">Anträge laden…</p>
           }
@@ -299,8 +242,6 @@ export class DrawerExample {
   readonly restoreChanges = signal(true);
   readonly prepend = signal(0);
   readonly addThree = (count: number) => count + 3;
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  readonly fragment = linkedRouteFragment();
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly count = signal(
@@ -324,18 +265,13 @@ export class DrawerExample {
         ...Array.from({ length: params.count }, (_, i) => i + 1),
       ]).pipe(delay(150)),
   });
-  readonly source = { data: () => this.resource.value(), isLoading: this.resource.isLoading };
-  readonly changesSource = {
-    data: () => (this.restoreChanges() ? this.resource.value() : undefined),
-    isLoading: this.resource.isLoading,
-  };
-  private readonly scroll = inject(ScrollService);
+  private readonly scroll = viewChild.required(MagicScrollDirective);
+  readonly options = computed(() => ({
+    behavior: { restoration: this.behavior(), interaction: this.behavior() },
+    headerOffset: this.offset(),
+    restoreOnDataChange: this.restoreChanges(),
+  }));
   jump(id: number) {
-    this.fragment.set('antrag-card-' + id);
-    this.scroll.scroll('antrag-card-' + id, {
-      scrollable: this.host.nativeElement.querySelector<HTMLElement>('mat-drawer-content')!,
-      topOffset: this.offset(),
-      behavior: this.behavior(),
-    });
+    this.scroll().scrollTo('antrag-card-' + id);
   }
 }

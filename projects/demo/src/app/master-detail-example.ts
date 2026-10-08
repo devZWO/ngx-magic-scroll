@@ -1,40 +1,27 @@
-import { DOCUMENT } from '@angular/common';
-import {
-  afterNextRender,
-  Component,
-  computed,
-  DestroyRef,
-  ElementRef,
-  inject,
-  signal,
-} from '@angular/core';
+import { Component, signal, viewChild } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { delay, of } from 'rxjs';
-import {
-  injectedHeaderHeight,
-  linkedRouteFragment,
-  NearestAnchorProvider,
-  NearestAnchorScrollHook,
-  PreserveVisibleAnchorOnResize,
-  ScrollService,
-  ScrollToFragmentOnFirstDataDirective,
-} from '@devzwo/ngx-magic-scroll';
+import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scroll';
 
 @Component({
-  imports: [
-    NearestAnchorScrollHook,
-    PreserveVisibleAnchorOnResize,
-    ScrollToFragmentOnFirstDataDirective,
+  imports: [MagicScrollDirective],
+  providers: [
+    provideMagicScroll({
+      anchorPrefix: 'projekt-',
+      headerSelector: '.portfolio-header',
+      headerOffset: 16,
+      behavior: { interaction: 'instant' },
+    }),
   ],
-  providers: [NearestAnchorProvider],
   template: ` <header class="portfolio-header" [class.expanded]="expanded()">
       <div>
         <strong>Portfolio · Master und Details</strong
         ><button (click)="expanded.set(!expanded())">Headerhöhe ändern</button>
       </div>
       <p>
-        Gemessene Headerhöhe: <output data-testid="header-height">{{ headerHeight() }}</output> px ·
-        Aktiver Anker: {{ fragment() }}
+        Gemessene Headerhöhe:
+        <output data-testid="header-height">{{ scroll.headerHeight() }}</output> px · Aktiver Anker:
+        {{ scroll.activeAnchor() }}
       </p>
       @if (expanded()) {
         <p>Zusätzliche Toolbar · Die sichtbare Oberkante passt sich automatisch an.</p>
@@ -45,13 +32,13 @@ import {
       Links scrollt das Inhaltsverzeichnis unabhängig. Rechts wachsen die Details in voller Länge
       und scrollen das Dokument. Inspiriert vom Portfolio-Editor in zwoPRO.
     </p>
-    <div class="portfolio-layout" [style.--header-offset]="offset() + 'px'">
+    <div class="portfolio-layout" [style.--header-offset]="scroll.offset() + 'px'">
       <aside class="portfolio-master" aria-label="Portfolio-Projekte">
         <h2>Projekte</h2>
         <nav aria-label="Projektübersicht">
           @for (id of projects; track id) {
             <button
-              [attr.aria-current]="fragment() === 'projekt-' + id ? 'true' : null"
+              [attr.aria-current]="scroll.activeAnchor() === 'projekt-' + id ? 'true' : null"
               (click)="jump(id)"
             >
               Projekt {{ id }}
@@ -59,18 +46,7 @@ import {
           }
         </nav>
       </aside>
-      <div
-        class="portfolio-details"
-        appNearestAnchorScrollHook
-        selectorPrefix="projekt-"
-        headerSelector=".portfolio-header"
-        [headerOffset]="16"
-        (appNearestAnchorScrollHook)="fragment.set($event)"
-        appPreserveVisibleAnchorOnResize
-        [topOffset]="offset()"
-        [appScrollingOnFirstData]="source"
-        [onlyOnceTopOffset]="offset()"
-      >
+      <div class="portfolio-details" magicScroll #scroll="magicScroll" [scrollSource]="resource">
         @if (resource.isLoading()) {
           <p role="status">Projekte laden…</p>
         }
@@ -152,35 +128,11 @@ import {
   `,
 })
 export class MasterDetailExample {
-  private readonly document = inject(DOCUMENT);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly scroll = inject(ScrollService);
-  private readonly destroyRef = inject(DestroyRef);
   readonly projects = Array.from({ length: 24 }, (_, i) => i + 1);
   readonly expanded = signal(false);
-  readonly headerHeight = signal(0);
-  readonly offset = computed(() => this.headerHeight() + 16);
-  readonly fragment = linkedRouteFragment();
-  readonly resource = rxResource({
-    // Initial anchor restoration must wait until the sticky header has been measured.
-    params: () => (this.headerHeight() > 0 ? true : undefined),
-    stream: () => of(this.projects).pipe(delay(250)),
-  });
-  readonly source = { data: () => this.resource.value(), isLoading: this.resource.isLoading };
-  constructor() {
-    afterNextRender(() => {
-      const header = this.host.nativeElement.querySelector<HTMLElement>('.portfolio-header')!;
-      const observer = new ResizeObserver(() => {
-        this.headerHeight.set(injectedHeaderHeight('.portfolio-header', this.document));
-        const anchor = this.fragment();
-        if (anchor) this.scroll.scroll(anchor, { topOffset: this.offset() });
-      });
-      observer.observe(header);
-      this.destroyRef.onDestroy(() => observer.disconnect());
-    });
-  }
+  readonly resource = rxResource({ stream: () => of(this.projects).pipe(delay(250)) });
+  private readonly scroll = viewChild.required(MagicScrollDirective);
   jump(id: number) {
-    this.fragment.set('projekt-' + id);
-    this.scroll.scroll('projekt-' + id, { topOffset: this.offset() });
+    this.scroll().scrollTo('projekt-' + id);
   }
 }

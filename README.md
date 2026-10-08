@@ -1,6 +1,18 @@
 # ngx-magic-scroll
 
-Angular signal utilities for anchor scrolling and navigation. **Pre-release:** the implementation is being extracted and its public API is not yet stable. No npm release has been made from this repository.
+Anchor scrolling, URL synchronization and position restoration for Angular. **Pre-release:** the implementation is being extracted and its public API is not yet stable. No npm release has been made from this repository.
+
+## Simplified API
+
+Import `MagicScrollDirective` and use `<div magicScroll>` for static or resolver-loaded content.
+Pass `[scrollSource]="projects"` for a signal or Angular resource; no resource adapter is needed.
+All descendant IDs are anchors by default; `scrollAnchor` is optional.
+`provideMagicScroll()` registers inheritable defaults for prefixes, measured headers and separate
+restoration/interaction behavior. Region and per-call options can override them.
+
+See the [library README](projects/ngx-signal-scroll/README.md) for examples and the migration guide.
+Low-level scrolling and reactive helpers are internal. All four demos use the facade; their 25 existing
+E2E scenarios pass unchanged in Chromium, Firefox and WebKit (75 runs).
 
 ## Workspace
 

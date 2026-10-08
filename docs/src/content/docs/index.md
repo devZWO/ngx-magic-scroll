@@ -1,10 +1,10 @@
 ---
 title: ngx-magic-scroll
-description: Angular signal utilities for anchor scrolling and navigation.
+description: Anchor scrolling, URL synchronization and position restoration for Angular.
 ---
 
-This library is being extracted from an existing Angular application. The package is **pre-release**: the public API and integrations are still being reviewed.
+`magicScroll` combines anchor scrolling, URL synchronization, asynchronous restoration and layout preservation in one Angular directive. Static content needs only the directive; signals and Angular resources can be passed directly through `scrollSource`.
 
-The repository contains the Angular library, a routed demo, browser tests, and this documentation site. See [Getting started](./getting-started/) for development setup and the generated API section for the currently exported symbols.
+The package is **pre-release**: its public API is still under review. The public API contains the facade and its consumer-facing types; low-level services and helpers are internal.
 
-The [demo](./demo/) currently contains the Angular starter screen. Navigation and scroll recovery examples will be added during the extraction.
+See [Getting started](./getting-started/) for minimal usage and the generated API section for exported symbols. The [demo](./demo/) presents document synchronization, asynchronous navigation restoration, Material Drawer with pagination, and master–detail document scrolling with a measured sticky header.

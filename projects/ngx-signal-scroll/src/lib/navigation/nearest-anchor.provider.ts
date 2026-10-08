@@ -7,6 +7,10 @@ import { injectedHeaderHeight } from './inject-header-size';
  * Konfigurationsoptionen für die Ermittlung des nächstgelegenen Ankers.
  */
 export interface NearestAnchorOptions {
+  /** Explicit scroll container, including a host that is itself scrollable. */
+  scrollable?: HTMLElement;
+  /** Preselected anchor elements (e.g. scoped, explicit anchors in the facade). */
+  anchors?: readonly HTMLElement[];
   /**
    * Optionales Host-Element / übergeordneter Container, in dem nach Anker-Elementen gesucht wird.
    * Standardmäßig wird das gesamte `Document` durchsucht.
@@ -71,11 +75,13 @@ export class NearestAnchorProvider {
       (options?.headerSelector ? injectedHeaderHeight(options.headerSelector, this.document) : 0);
 
     // Collects all HTML elements with an id – these are our potential anchor targets
-    const anchors = Array.from(host.querySelectorAll<HTMLElement>(selector));
-    const scrollable = options?.hostElement
-      ? injectScrollableParentElement(options.hostElement)
-      : undefined;
-    const top = (scrollable?.getBoundingClientRect().top ?? 0) + offset;
+    const anchors = options?.anchors ?? Array.from(host.querySelectorAll<HTMLElement>(selector));
+    const scrollable =
+      options?.scrollable ??
+      (options?.hostElement ? injectScrollableParentElement(options.hostElement) : undefined);
+    const isDocument =
+      scrollable === this.document.documentElement || scrollable === this.document.body;
+    const top = (isDocument ? 0 : (scrollable?.getBoundingClientRect().top ?? 0)) + offset;
     // Browser scroll positions may round fractional header heights to whole pixels.
     const visibleAnchors = anchors.filter((el) => el.getBoundingClientRect().top >= top - 1);
 

@@ -1,6 +1,6 @@
 import { Component, input, model } from '@angular/core';
-import { ScrollOptions } from '@devzwo/ngx-magic-scroll';
-export type VisibilityMode = NonNullable<ScrollOptions['ignoreWhenInView']>;
+import { MagicScrollOptions } from '@devzwo/ngx-magic-scroll';
+export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>;
 
 @Component({
   selector: 'app-scroll-options',
