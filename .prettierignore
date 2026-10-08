@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+node_modules/
+dist/
+coverage/
+docs/.astro/
+docs/dist/
+docs/src/content/docs/api/
+playwright-report/
+test-results/

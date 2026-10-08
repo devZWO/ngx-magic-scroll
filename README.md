@@ -1,59 +1,51 @@
-# NgxMagicScroll
+# ngx-magic-scroll
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.2.
+Angular signal utilities for anchor scrolling and navigation. **Pre-release:** the implementation is being extracted and its public API is not yet stable. No npm release has been made from this repository.
 
-## Development server
+## Workspace
 
-To start a local development server, run:
+- `projects/ngx-signal-scroll`: publishable `@devzwo/ngx-magic-scroll` library (the Angular project retains its original local name).
+- `projects/demo`: routed Angular demo; still the starter screen.
+- `projects/demo/e2e`: Playwright tests.
+- `docs`: Astro/Starlight documentation with API pages generated from TypeScript comments.
+- `.github/workflows`: validation, GitHub Pages deployment, and npm release.
 
-```bash
-ng serve
+## Development
+
+Requires Node.js 24 and pnpm 12.4.2.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm lib:build
+pnpm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+| Command                 | Purpose                                                 |
+| ----------------------- | ------------------------------------------------------- |
+| `pnpm build`            | Build library, demo, and documentation                  |
+| `pnpm lib:watch`        | Rebuild library during development                      |
+| `pnpm lint`             | Lint TypeScript and Angular templates                   |
+| `pnpm test:ci`          | Run Vitest tests with coverage                          |
+| `pnpm e2e:install`      | Download Playwright browsers                            |
+| `pnpm e2e:install:deps` | Install browser system dependencies if needed           |
+| `pnpm e2e`              | Run tests against the demo in Chromium, Firefox, WebKit |
+| `pnpm docs:dev`         | Start the documentation site                            |
+| `pnpm package:check`    | Build and inspect the publishable package               |
+| `pnpm release:check`    | Run the complete local release validation               |
+| `pnpm format`           | Format workspace files                                  |
 
-## Code scaffolding
+Playwright starts the demo automatically. Scroll recovery browser scenarios will be added with the real demo.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Publishing
 
-```bash
-ng generate component component-name
-```
+The intended repository is `devZWO/ngx-magic-scroll`, the intended npm package is `@devzwo/ngx-magic-scroll`. See [RELEASING.md](RELEASING.md) for GitHub Pages, npm trusted publishing, version tags, and the first release.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Only `dist/ngx-signal-scroll` is published to npm; the workspace root is private. The build includes the library README and MIT license.
 
-```bash
-ng generate --help
-```
+## Documentation
 
-## Building
+`pnpm docs:build` generates the documentation and API reference in `docs/dist`. GitHub Pages deploys the docs at `/ngx-magic-scroll/` and the demo at `/ngx-magic-scroll/demo/`.
 
-To build the project run:
+## License
 
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+MIT, copyright 2026 devZWO GmbH. See [LICENSE](LICENSE).

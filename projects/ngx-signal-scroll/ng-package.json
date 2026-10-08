@@ -3,5 +3,6 @@
   "dest": "../../dist/ngx-signal-scroll",
   "lib": {
     "entryFile": "src/public-api.ts"
-  }
+  },
+  "assets": ["LICENSE"]
 }

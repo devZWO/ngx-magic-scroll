@@ -1,14 +1,28 @@
 {
-  "name": "ngx-magic-scroll",
+  "name": "@devzwo/ngx-magic-scroll-workspace",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development",
+    "start": "ng serve demo",
+    "build": "pnpm run lib:build && pnpm run demo:build && pnpm run docs:build",
+    "lib:build": "ng build ngx-signal-scroll",
+    "lib:watch": "ng build ngx-signal-scroll --watch --configuration development",
+    "demo:build": "ng build demo",
+    "demo:build:pages": "ng build demo --base-href /ngx-magic-scroll/demo/",
     "test": "ng test",
-    "install:playwright1": "sudo pnpm exec playwright install",
-    "install:playwright": "pnpm exec playwright install-deps "
+    "test:ci": "ng test --watch=false --coverage",
+    "lint": "eslint projects scripts playwright.config.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:install": "playwright install",
+    "e2e:install:deps": "playwright install-deps",
+    "docs:dev": "pnpm --filter docs dev",
+    "docs:build": "pnpm --filter docs build",
+    "docs:preview": "pnpm --filter docs preview",
+    "package:check": "pnpm run lib:build && node scripts/check-package.mjs && npm pack ./dist/ngx-signal-scroll --dry-run",
+    "release:check": "pnpm run lint && pnpm run test:ci && pnpm run build && pnpm run e2e && pnpm run package:check"
   },
   "private": true,
   "packageManager": "pnpm@12.4.2",
@@ -31,6 +45,18 @@
     "ng-packagr": "^22.2.0",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "typescript-eslint": "^8.59.2",
+    "angular-eslint": "^22.0.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "ngxtension": "^7.0.0",
+    "@ddtmm/angular-signal-generators": "^4.0.1",
+    "@tanstack/angular-query-experimental": "^5.80.9"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0 <25"
   }
 }

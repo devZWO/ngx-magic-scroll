@@ -1,12 +1,37 @@
 {
-  "name": "ngx-signal-scroll",
+  "name": "@devzwo/ngx-magic-scroll",
   "version": "0.0.1",
   "peerDependencies": {
     "@angular/common": "^22.2.0",
-    "@angular/core": "^22.2.0"
+    "@angular/core": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "rxjs": "^7.8.0",
+    "ngxtension": "^7.0.0",
+    "@ddtmm/angular-signal-generators": "^4.0.1",
+    "@tanstack/angular-query-experimental": "^5.80.9"
   },
   "dependencies": {
     "tslib": "^2.3.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "description": "Angular signal utilities for anchor scrolling and navigation state.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devZWO/ngx-magic-scroll.git",
+    "directory": "projects/ngx-signal-scroll"
+  },
+  "homepage": "https://devzwo.github.io/ngx-magic-scroll/",
+  "bugs": {
+    "url": "https://github.com/devZWO/ngx-magic-scroll/issues"
+  },
+  "keywords": [
+    "angular",
+    "signals",
+    "scroll",
+    "navigation"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

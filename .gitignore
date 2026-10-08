@@ -42,3 +42,14 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Documentation and browser tests
+**/node_modules/
+docs/dist/
+docs/.astro/
+docs/src/content/docs/api/
+playwright-report/
+test-results/
+blob-report/
+*.tgz
+.junie/memory/
