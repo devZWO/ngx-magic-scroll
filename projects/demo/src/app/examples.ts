@@ -2,7 +2,7 @@ import { Component, ElementRef, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
-import { delay, of } from 'rxjs';
+import { delay, map, of, timer } from 'rxjs';
 import { ScrollOptionsPanel, VisibilityMode } from './scroll-options';
 import {
   linkedRouteFragment,
@@ -101,6 +101,28 @@ export class DocumentExample {
       (offsetChange)="setOptions(behavior(), $event)"
     />
     <p>Die gewählten Optionen bleiben bei Detailnavigation und Reload in der URL erhalten.</p>
+    <details>
+      <summary>Ladeverhalten</summary>
+      <label
+        >Ladezeit (ms)<input
+          type="number"
+          min="0"
+          max="5000"
+          [value]="loadDelay()"
+          (input)="loadDelay.set(+$any($event.target).value)"
+      /></label>
+      <label
+        >Ladeergebnis<select
+          [value]="loadResult()"
+          (change)="loadResult.set($any($event.target).value)"
+        >
+          <option value="data">Einträge</option>
+          <option value="empty">Leere Liste</option>
+          <option value="error">Ladefehler</option>
+        </select></label
+      >
+      <button (click)="resource.reload()">Liste neu laden</button>
+    </details>
     <div class="viewport">
       <div
         appNearestAnchorScrollHook
@@ -118,7 +140,13 @@ export class DocumentExample {
         @if (resource.isLoading()) {
           <p role="status">Lädt…</p>
         }
-        @for (id of resource.value(); track id) {
+        @if (resource.error()) {
+          <p role="alert">Die Liste konnte nicht geladen werden. Bitte erneut versuchen.</p>
+        }
+        @if (resource.hasValue() && resource.value().length === 0) {
+          <p role="status">Keine Einträge.</p>
+        }
+        @for (id of entries(); track id) {
           <section [id]="'eintrag-' + id">
             <h2>Eintrag {{ id }}</h2>
             <a [routerLink]="['/navigation/detail', id]" queryParamsHandling="preserve"
@@ -152,8 +180,26 @@ export class NavigationExample {
     });
   }
   readonly fragment = linkedRouteFragment();
-  readonly resource = rxResource({ stream: () => of([1, 2, 3, 4, 5, 6, 7, 8]).pipe(delay(150)) });
-  readonly source = { data: () => this.resource.value(), isLoading: this.resource.isLoading };
+  readonly loadDelay = signal(
+    Math.max(0, Math.min(5000, Number(this.route.snapshot.queryParamMap.get('delay')) || 150)),
+  );
+  readonly loadResult = signal(this.route.snapshot.queryParamMap.get('result') ?? 'data');
+  readonly resource = rxResource({
+    stream: () => {
+      const result = this.loadResult();
+      return timer(this.loadDelay()).pipe(
+        map(() => {
+          if (result === 'error') throw new Error('Demo-Ladefehler');
+          return result === 'empty' ? [] : [1, 2, 3, 4, 5, 6, 7, 8];
+        }),
+      );
+    },
+  });
+  readonly entries = () => (this.resource.hasValue() ? this.resource.value() : []);
+  readonly source = {
+    data: () => (this.resource.hasValue() ? this.resource.value() : undefined),
+    isLoading: this.resource.isLoading,
+  };
 }
 
 @Component({

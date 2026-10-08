@@ -1,20 +1,5 @@
-import { expect, test, Page } from '@playwright/test';
-async function aligned(page: Page, id: string, container: string) {
-  await expect
-    .poll(() =>
-      page
-        .locator(id)
-        .evaluate(
-          (el, selector) =>
-            Math.abs(
-              el.getBoundingClientRect().top -
-                document.querySelector(selector)!.getBoundingClientRect().top,
-            ),
-          container,
-        ),
-    )
-    .toBeLessThan(24);
-}
+import { expect } from '@playwright/test';
+import { test, aligned, atOffset } from './fixtures';
 test('document synchronizes scroll, fragment and active anchor without adding history', async ({
   page,
 }) => {
@@ -41,8 +26,24 @@ test('navigation restores after async loading, browser back, reload and resize',
   await page.goBack();
   await expect(page).toHaveURL(/keep=yes#eintrag-4$/);
   await aligned(page, '#eintrag-4', '.viewport');
+  await page.goForward();
+  await expect(page.getByRole('heading', { name: 'Details zu 4' })).toBeVisible();
+  await page.goBack();
+  await aligned(page, '#eintrag-4', '.viewport');
   await page.reload();
   await aligned(page, '#eintrag-4', '.viewport');
+  // A real layout shift must occur before resize restoration can prove anything.
+  await page.locator('.viewport').evaluate((el) => (el.style.overflowAnchor = 'none'));
+  await page.locator('#eintrag-1').evaluate((el) => (el.style.minHeight = '380px'));
+  expect(
+    await page
+      .locator('#eintrag-4')
+      .evaluate(
+        (el) =>
+          el.getBoundingClientRect().top -
+          document.querySelector('.viewport')!.getBoundingClientRect().top,
+      ),
+  ).toBeGreaterThan(90);
   await page.setViewportSize({ width: 900, height: 700 });
   await aligned(page, '#eintrag-4', '.viewport');
 });
@@ -72,6 +73,10 @@ test('Material drawer supports restoration, scroll synchronization, reload and p
   await aligned(page, '#antrag-card-10', 'mat-drawer-content');
   await page.getByRole('button', { name: 'Navigation umschalten' }).click();
   await expect(page.locator('mat-drawer')).not.toBeVisible();
+  await aligned(page, '#antrag-card-10', 'mat-drawer-content');
+  await page.getByRole('button', { name: 'Navigation umschalten' }).click();
+  await expect(page.locator('mat-drawer')).toBeVisible();
+  await aligned(page, '#antrag-card-10', 'mat-drawer-content');
   await page.setViewportSize({ width: 850, height: 650 });
   await aligned(page, '#antrag-card-10', 'mat-drawer-content');
 });
@@ -113,10 +118,16 @@ test('master-detail scrolls the document independently of master and accounts fo
     .poll(async () => Number(await page.getByTestId('header-height').textContent()))
     .toBeGreaterThan(height);
   await belowHeader(12);
+  await page.getByRole('button', { name: 'Headerhöhe ändern' }).click();
+  await expect
+    .poll(async () => Number(await page.getByTestId('header-height').textContent()))
+    .toBeLessThan(height + 1);
+  await belowHeader(12);
   await page.setViewportSize({ width: 650, height: 700 });
   await belowHeader(12);
   await page.reload();
   await belowHeader(12);
+  const masterPosition = await master.evaluate((el) => el.scrollTop);
   await page.locator('#projekt-15').evaluate((el) =>
     window.scrollBy({
       top:
@@ -127,26 +138,14 @@ test('master-detail scrolls the document independently of master and accounts fo
     }),
   );
   await expect(page).toHaveURL(/#projekt-15$/);
+  await expect(page.getByRole('button', { name: 'Projekt 15', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  expect(await master.evaluate((el) => el.scrollTop)).toBe(masterPosition);
   expect(errors).toEqual([]);
 });
 
-async function atOffset(page: Page, anchor: string, container: string, offset: number) {
-  await expect
-    .poll(() =>
-      page
-        .locator(anchor)
-        .evaluate(
-          (el, args) =>
-            Math.abs(
-              el.getBoundingClientRect().top -
-                document.querySelector(args.container)!.getBoundingClientRect().top -
-                args.offset,
-            ),
-          { container, offset },
-        ),
-    )
-    .toBeLessThan(2);
-}
 test('document options apply smooth scrolling, offsets, visibility rules and anchor filtering', async ({
   page,
 }) => {
