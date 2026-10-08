@@ -1,6 +1,6 @@
 import { Directive, ElementRef, inject, Injector, input, OnInit, untracked } from '@angular/core';
 import { injectRouteFragment } from 'ngxtension/inject-route-fragment';
-import { CreateInfiniteQueryResult } from '@tanstack/angular-query-experimental';
+import { ScrollDataSource } from './scroll-data-source';
 import { effectSkipFirstIf } from '../effects/effect-skip-first-if';
 import { injectScrollableParentElement } from './inject-scrollable-parent';
 import { ScrollService } from './scroll-service';
@@ -33,10 +33,9 @@ export class ScrollToFragmentOnDataChangeDirective implements OnInit {
     attribute that can be applied simultaneously, that's why we need different specific external names
   */
   /**
-   * Das TanStack-Query-Ergebnis (z. B. `injectInfiniteQuery`), dessen Datenaktualisierungen überwacht werden.
+   * Das anbieterneutrale Datenquelle (z. B. `injectInfiniteQuery`), dessen Datenaktualisierungen überwacht werden.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- we do not care about the type of the query here
-  public readonly queryResult = input.required<CreateInfiniteQueryResult<any>>({
+  public readonly queryResult = input.required<ScrollDataSource>({
     alias: 'appScrollingOnDataChange',
   });
 
@@ -69,9 +68,9 @@ export class ScrollToFragmentOnDataChangeDirective implements OnInit {
     effectSkipFirstIf(
       // all but the first time the anchor is changing the scrolling starts
       () => {
-        const queryResult = untracked(() => this.queryResult());
+        const queryResult = this.queryResult();
         const anchor = untracked(() => this.anchor());
-        const isLoading = untracked(() => queryResult.isLoading());
+        const isLoading = queryResult.isLoading();
         // data() is NOT untracked that's why it will inform this effect
         const data = queryResult.data();
         return !!anchor && !!data && !isLoading && !!scrollable;

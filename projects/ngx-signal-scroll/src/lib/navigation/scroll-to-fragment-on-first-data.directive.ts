@@ -1,13 +1,13 @@
 import { Directive, ElementRef, inject, Injector, input, OnInit } from '@angular/core';
 import { injectRouteFragment } from 'ngxtension/inject-route-fragment';
 import { effectOnceIf } from 'ngxtension/effect-once-if';
-import { CreateInfiniteQueryResult } from '@tanstack/angular-query-experimental';
+import { ScrollDataSource } from './scroll-data-source';
 import { ScrollService } from './scroll-service';
 import { injectScrollableParentElement } from './inject-scrollable-parent';
 
 /**
  * Direktive für das einmalige initiale Scrollen zu einem in der URL angegebenen Anker (#fragment),
- * sobald asynchrone Daten (z. B. via TanStack Query) zum ersten Mal erfolgreich geladen wurden.
+ * sobald asynchrone Daten (z. B. via rxResource) zum ersten Mal erfolgreich geladen wurden.
  *
  * Löst das Problem, dass beim Seitenaufruf mit einem Fragment in der URL das Zielelement
  * noch gar nicht im DOM existiert, weil die Daten erst asynchron per API geladen werden.
@@ -34,10 +34,9 @@ export class ScrollToFragmentOnFirstDataDirective implements OnInit {
     that can be applied simultaneously, that's why we need different specific external names
    */
   /**
-   * Das TanStack-Query-Ergebnis (z. B. `injectInfiniteQuery`), dessen Datenzustand überwacht wird.
+   * Das anbieterneutrale Datenquelle (z. B. `injectInfiniteQuery`), dessen Datenzustand überwacht wird.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- we do not care about the type of the query here
-  public readonly queryResult = input.required<CreateInfiniteQueryResult<any>>({
+  public readonly queryResult = input.required<ScrollDataSource>({
     alias: 'appScrollingOnFirstData',
   });
 
@@ -75,6 +74,7 @@ export class ScrollToFragmentOnFirstDataDirective implements OnInit {
           this.scrollService.scroll(this.anchor, {
             scrollable: scrollable,
             topOffset: this.topOffset(),
+            behavior: this.scroll(),
           });
         });
       },

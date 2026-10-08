@@ -1,4 +1,4 @@
-import {EffectRef, effect, Injector} from "@angular/core";
+import { EffectRef, effect, Injector } from '@angular/core';
 
 /**
  * Erstellt einen Angular `effect`, der die angegebene Aktion erst ab dem **zweiten** erfolgreichen
@@ -24,7 +24,7 @@ import {EffectRef, effect, Injector} from "@angular/core";
 export function effectSkipFirstIf(
   predicate: () => boolean,
   action: () => void,
-  options?: { injector: Injector }
+  options?: { injector: Injector },
 ): EffectRef {
   let triggerCount = 0;
 

@@ -9,6 +9,11 @@ assert.ok(pkg.exports?.['.']?.types, 'Missing public type declarations');
 for (const file of ['README.md', 'LICENSE', pkg.exports['.'].types]) {
   assert.ok(existsSync(new URL(file, dir)), `Missing package file: ${file}`);
 }
+const declarations = readFileSync(new URL(pkg.exports['.'].types, dir), 'utf8');
+assert.ok(
+  !/export\s*\{[^}]*\b(?:effectIf|effectSkipFirstIf)\b/.test(declarations),
+  'Internal effect helpers must not appear in the public declarations',
+);
 if (process.env.RELEASE_TAG) {
   assert.equal(
     process.env.RELEASE_TAG,

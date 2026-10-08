@@ -5,7 +5,7 @@ Angular signal utilities for anchor scrolling and navigation. **Pre-release:** t
 ## Workspace
 
 - `projects/ngx-signal-scroll`: publishable `@devzwo/ngx-magic-scroll` library (the Angular project retains its original local name).
-- `projects/demo`: routed Angular demo; still the starter screen.
+- `projects/demo`: four routed demos: document sync, navigation restoration, Material drawer with rxResource, and master–detail with document scrolling and a dynamic sticky header.
 - `projects/demo/e2e`: Playwright tests.
 - `docs`: Astro/Starlight documentation with API pages generated from TypeScript comments.
 - `.github/workflows`: validation, GitHub Pages deployment, and npm release.
@@ -34,7 +34,7 @@ pnpm start
 | `pnpm release:check`    | Run the complete local release validation               |
 | `pnpm format`           | Format workspace files                                  |
 
-Playwright starts the demo automatically. Scroll recovery browser scenarios will be added with the real demo.
+Playwright starts the demo automatically. The scenarios check fragment synchronization, query parameter preservation, asynchronous restoration, browser back, reload, resize, drawer toggling and pagination. Library coverage is enforced at 100% per file for statements, branches, functions and lines.
 
 ## Publishing
 

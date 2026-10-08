@@ -1,6 +1,7 @@
-import { DOCUMENT } from "@angular/common";
-import {inject, Injectable} from "@angular/core";
-import {injectedHeaderHeight} from "./inject-header-size";
+import { DOCUMENT } from '@angular/common';
+import { inject, Injectable } from '@angular/core';
+import { injectScrollableParentElement } from './inject-scrollable-parent';
+import { injectedHeaderHeight } from './inject-header-size';
 
 /**
  * Konfigurationsoptionen für die Ermittlung des nächstgelegenen Ankers.
@@ -41,7 +42,6 @@ export interface NearestAnchorOptions {
  */
 @Injectable()
 export class NearestAnchorProvider {
-
   private readonly document = inject(DOCUMENT);
 
   /**
@@ -66,33 +66,37 @@ export class NearestAnchorProvider {
   public getNearestAnchor(options?: NearestAnchorOptions): string | undefined {
     const host = options?.hostElement ?? this.document;
     const selector = options?.selector ?? '[id]';
-    const offset = (options?.headerOffset ?? 0) + (options?.headerSelector ? injectedHeaderHeight(options?.headerSelector, document) : 0);
+    const offset =
+      (options?.headerOffset ?? 0) +
+      (options?.headerSelector ? injectedHeaderHeight(options.headerSelector, this.document) : 0);
 
     // Collects all HTML elements with an id – these are our potential anchor targets
-    const anchors = Array.from( host?.querySelectorAll<HTMLElement>(selector) ?? []);
-    const visibleAnchors = anchors.filter(el => el.getBoundingClientRect().top >= offset);
+    const anchors = Array.from(host.querySelectorAll<HTMLElement>(selector));
+    const scrollable = options?.hostElement
+      ? injectScrollableParentElement(options.hostElement)
+      : undefined;
+    const top = (scrollable?.getBoundingClientRect().top ?? 0) + offset;
+    // Browser scroll positions may round fractional header heights to whole pixels.
+    const visibleAnchors = anchors.filter((el) => el.getBoundingClientRect().top >= top - 1);
 
     // Iterates through all anchors and calculates their distance to the current scroll position (in pixels)
     const closest = visibleAnchors.reduce(
       (closest, el) => {
         // Retrieves the distance of the element to the top edge of the viewport
-        const offset = Math.abs(
-          el.getBoundingClientRect().top
-        );
+        const offset = Math.abs(el.getBoundingClientRect().top);
 
         // Compares the current distance with the smallest distance so far
         // and keeps track of the closer element
         return offset < closest.offset
-          ? {el, offset} // if closer: replace the previous one
-          : closest;     // otherwise: keep the previous one
+          ? { el, offset } // if closer: replace the previous one
+          : closest; // otherwise: keep the previous one
       },
       {
-        el: null as HTMLElement | null,          // Initial value: no element
-        offset: Number.POSITIVE_INFINITY         // Initial value: maximum distance
-      }
+        el: null as HTMLElement | null, // Initial value: no element
+        offset: Number.POSITIVE_INFINITY, // Initial value: maximum distance
+      },
     );
 
     return closest.el?.id;
   }
-
 }

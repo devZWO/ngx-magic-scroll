@@ -8,11 +8,11 @@ import {
   input,
   OnDestroy,
   output,
-  signal
 } from '@angular/core';
-import {NearestAnchorProvider} from "./nearest-anchor.provider";
-import {debounceSignal} from "@ddtmm/angular-signal-generators";
-import {injectScrollableParentElement} from "./inject-scrollable-parent";
+import { DOCUMENT } from '@angular/common';
+import { NearestAnchorProvider } from './nearest-anchor.provider';
+import { debounceSignal } from '@ddtmm/angular-signal-generators';
+import { injectScrollableParentElement } from './inject-scrollable-parent';
 
 /**
  * Direktive zur automatischen Ermittlung des nächstgelegenen Ankers beim Scrollen (Scroll-Spy).
@@ -40,7 +40,6 @@ import {injectScrollableParentElement} from "./inject-scrollable-parent";
   selector: '[appNearestAnchorScrollHook]',
 })
 export class NearestAnchorScrollHook implements AfterViewInit, OnDestroy {
-
   /**
    * Präfix für Anker-IDs, die berücksichtigt werden sollen (z. B. `'antrag-card-'`).
    * Verhindert, dass beliebige andere IDs auf der Seite fälschlicherweise als Anker gewählt werden.
@@ -59,24 +58,33 @@ export class NearestAnchorScrollHook implements AfterViewInit, OnDestroy {
    * Emittiert die ID des am nächsten liegenden sichtbaren Ankers bei Scroll-Bewegungen.
    * Alias entspricht dem Selektor `appNearestAnchorScrollHook`.
    */
-  public readonly nearestAnchor = output<string>({alias: 'appNearestAnchorScrollHook'});
+  public readonly nearestAnchor = output<string>({ alias: 'appNearestAnchorScrollHook' });
 
-  private readonly _selector = computed(() => this.selectorPrefix() ? `[id^="${this.selectorPrefix()}"]` : "[id]")
+  private readonly _selector = computed(() =>
+    this.selectorPrefix() ? `[id^="${this.selectorPrefix()}"]` : '[id]',
+  );
 
   private readonly _host = inject(ElementRef<HTMLElement>);
 
   private readonly _nearestAnchorProvider = inject(NearestAnchorProvider);
 
-  private readonly _scrollable = signal<HTMLElement | undefined>(undefined);
+  /** Optional header selector and additional offset at the visible top edge. */
+  public readonly headerSelector = input<string>('.header');
+  public readonly headerOffset = input(0);
+  private readonly _document = inject(DOCUMENT);
+  private _scrollTarget?: EventTarget;
 
-  private readonly _scrolled = debounceSignal<Event | undefined>(undefined, this.debounceTime());
+  private readonly _scrolled = debounceSignal<Event | undefined>(undefined, this.debounceTime);
 
   private readonly _nearestAnchor = computed(() =>
-    this._scrolled() ? this._nearestAnchorProvider.getNearestAnchor({
-      hostElement: this._host.nativeElement as HTMLElement,
-      selector: this._selector(),
-      headerSelector: '.header' // we need the header size to calculate the correct top-most item in the scroll area
-    }) ?? "" : ""
+    this._scrolled()
+      ? (this._nearestAnchorProvider.getNearestAnchor({
+          hostElement: this._host.nativeElement as HTMLElement,
+          selector: this._selector(),
+          headerSelector: this.headerSelector(),
+          headerOffset: this.headerOffset(),
+        }) ?? '')
+      : '',
   );
 
   constructor() {
@@ -89,18 +97,11 @@ export class NearestAnchorScrollHook implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    this._scrollable.set(injectScrollableParentElement(this._host.nativeElement as HTMLElement));
-
-    if (!this._scrollable()) {
-      console.error('Could not find a scrollable to subscribe on');
-    }
-    this._scrollable()?.addEventListener('scroll', this._scrolled.set);
+    this._scrollTarget = injectScrollableParentElement(this._host.nativeElement) ?? this._document;
+    this._scrollTarget.addEventListener('scroll', this._scrolled.set);
   }
 
   ngOnDestroy(): void {
-    this._scrollable()?.removeEventListener('scroll', this._scrolled.set);
+    this._scrollTarget?.removeEventListener('scroll', this._scrolled.set);
   }
-
 }
-
-

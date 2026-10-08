@@ -1,7 +1,7 @@
-import {Directive, ElementRef, inject, input} from "@angular/core";
-import {linkedRouteFragment} from "./linked-route-fragment";
-import {injectScrollableParentElement} from "./inject-scrollable-parent";
-import {ScrollService} from "./scroll-service";
+import { Directive, ElementRef, inject, input } from '@angular/core';
+import { linkedRouteFragment } from './linked-route-fragment';
+import { injectScrollableParentElement } from './inject-scrollable-parent';
+import { ScrollService } from './scroll-service';
 
 /**
  * Direktive, die bei einer Größenänderung des Browserfensters (`window:resize`)
@@ -26,9 +26,9 @@ import {ScrollService} from "./scroll-service";
  */
 @Directive({
   selector: '[appPreserveVisibleAnchorOnResize]',
-  host:{
-    '(window:resize)': 'scrollToAnchor()'
-  }
+  host: {
+    '(window:resize)': 'scrollToAnchor()',
+  },
 })
 export class PreserveVisibleAnchorOnResize {
   /**
@@ -39,7 +39,7 @@ export class PreserveVisibleAnchorOnResize {
   /**
    * Optionales Präfix für Anker-IDs, um nur auf fachlich relevante Anker zu reagieren.
    */
-  public readonly preserveSelectorPrefix = input<string>("");
+  public readonly preserveSelectorPrefix = input<string>('');
 
   private readonly hostElement = inject(ElementRef<HTMLElement>);
   private readonly scrollService = inject(ScrollService);
@@ -49,12 +49,12 @@ export class PreserveVisibleAnchorOnResize {
    * Führt das sofortige Re-Scrolling zum aktuellen URL-Fragment aus.
    */
   protected scrollToAnchor(): void {
-      const fragment = this.routeFragment();
-      if(!fragment) {
-        return;
-      }
-      const anchor = `#${this.routeFragment() ?? ""}`;
-      const scrollable  = injectScrollableParentElement(this.hostElement.nativeElement as HTMLElement);
-      this.scrollService.scroll(anchor, {scrollable: scrollable, topOffset: this.topOffset()});
+    const fragment = this.routeFragment();
+    if (!fragment || !fragment.startsWith(this.preserveSelectorPrefix())) {
+      return;
+    }
+    const anchor = `#${fragment}`;
+    const scrollable = injectScrollableParentElement(this.hostElement.nativeElement as HTMLElement);
+    this.scrollService.scroll(anchor, { scrollable: scrollable, topOffset: this.topOffset() });
   }
 }

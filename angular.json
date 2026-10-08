@@ -28,7 +28,16 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "tsConfig": "projects/ngx-signal-scroll/tsconfig.spec.json",
-            "runner": "vitest"
+            "runner": "vitest",
+            "coverageInclude": ["projects/ngx-signal-scroll/src/lib/**/*.ts"],
+            "coverageExclude": ["**/*.spec.ts"],
+            "coverageThresholds": {
+              "perFile": true,
+              "statements": 100,
+              "branches": 100,
+              "functions": 100,
+              "lines": 100
+            }
           }
         }
       }

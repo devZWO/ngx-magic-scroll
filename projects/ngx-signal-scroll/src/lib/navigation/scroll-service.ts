@@ -1,5 +1,5 @@
-import {inject, Injectable} from "@angular/core";
-import {DOCUMENT} from "@angular/common";
+import { inject, Injectable } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 
 /**
  * Optionen für die Ausführung eines Scroll-Vorgangs über den `ScrollService`.
@@ -7,7 +7,7 @@ import {DOCUMENT} from "@angular/common";
 export interface ScrollOptions {
   /**
    * Das übergeordnete scrollbare Container-Element.
-   * Standardmäßig `document.body`.
+   * Standardmäßig das scrollende Dokument-Element.
    */
   scrollable?: HTMLElement;
   /**
@@ -40,10 +40,9 @@ export interface ScrollOptions {
  * - Weiches (`smooth`) oder sofortiges (`instant`) Scrollverhalten.
  */
 @Injectable({
-  providedIn: "root",
+  providedIn: 'root',
 })
 export class ScrollService {
-
   private readonly document = inject<Document>(DOCUMENT);
   private readonly TOP_OFFSET = 20;
 
@@ -68,48 +67,48 @@ export class ScrollService {
    * });
    * ```
    */
-  scroll(
-    anchor: string,
-    options?: ScrollOptions
-  ): boolean {
+  scroll(anchor: string, options?: ScrollOptions): boolean {
     const elementId = anchor.startsWith('#') ? anchor.slice(1) : anchor;
     const el = this.document.getElementById(elementId);
 
-    if(!el) {
+    if (!el) {
       return false;
     }
 
-    const scrollable = options?.scrollable ?? this.document.body;
-    const behavior = options?.behavior ?? "instant";
+    const scrollable =
+      options?.scrollable ??
+      (this.document.scrollingElement as HTMLElement | null) ??
+      this.document.documentElement;
+    const behavior = options?.behavior ?? 'instant';
     const ignoreWhenInView = options?.ignoreWhenInView ?? 'none';
     const topOffset = options?.topOffset ?? this.TOP_OFFSET;
 
     const rect = el.getBoundingClientRect();
-    const isTopInView = rect.top >= -this.TOP_OFFSET;
-    const isBottomInView = rect.bottom <= (scrollable.clientHeight ?? 0);
+    const isDocument =
+      scrollable === this.document.documentElement || scrollable === this.document.body;
+    const containerTop = isDocument ? 0 : scrollable.getBoundingClientRect().top;
+    const viewportHeight = isDocument
+      ? this.document.documentElement.clientHeight
+      : scrollable.clientHeight;
+    const isTopInView =
+      rect.top >= containerTop + topOffset - 1 && rect.top < containerTop + viewportHeight;
+    const isBottomInView =
+      rect.bottom <= containerTop + viewportHeight && rect.bottom > containerTop;
 
-    if(
-      ignoreWhenInView == 'top' && isTopInView ||
-      ignoreWhenInView == 'full' && isTopInView && isBottomInView ||
-      ignoreWhenInView == 'always' && (isTopInView || isBottomInView)
+    if (
+      (ignoreWhenInView == 'top' && isTopInView) ||
+      (ignoreWhenInView == 'full' && isTopInView && isBottomInView) ||
+      (ignoreWhenInView == 'always' && (isTopInView || isBottomInView))
     ) {
       return false;
     }
 
-    el.scrollIntoView({behavior: behavior, block: 'start'});
-    if(!scrollable) {
-      console.warn("no scrollable found");
-    }
-
-    if (behavior == 'instant') {
-      scrollable.scrollBy({top: -topOffset, behavior: behavior});
-    } else {
-      setTimeout( () => {
-        scrollable.scrollBy({top: -topOffset, behavior: behavior});
-      }, 500);
-    }
+    // One operation keeps offsets accurate during smooth scrolling and only moves the selected container.
+    scrollable.scrollTo({
+      top: scrollable.scrollTop + rect.top - containerTop - topOffset,
+      behavior,
+    });
 
     return true;
   }
-
 }

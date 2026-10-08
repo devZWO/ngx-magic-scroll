@@ -22,7 +22,7 @@ The intended npm package is `@devzwo/ngx-magic-scroll`; it has not yet been publ
 pnpm add @devzwo/ngx-magic-scroll
 ```
 
-The current source uses Angular 22.2, RxJS, ngxtension, TanStack Angular Query, and Angular signal generators. These integrations are currently peer dependencies; inspect the library's `package.json` for their supported ranges. This dependency surface may change before a stable release.
+The current source uses Angular 22.2, RxJS, ngxtension and Angular signal generators. These integrations are currently peer dependencies; inspect the library's `package.json` for their supported ranges. This dependency surface may change before a stable release.
 
 ## Public imports
 

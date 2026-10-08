@@ -15,10 +15,10 @@
  */
 export function injectedHeaderHeight(headerSelector: string, document: Document): number {
   const boundingBox = document.querySelector<HTMLElement>(headerSelector)?.getBoundingClientRect();
-  if(!boundingBox) {
+  if (!boundingBox) {
     console.warn('No boundingBox found for headerSelector: ', headerSelector);
     return 0;
   }
 
-  return Math.abs(boundingBox?.height);
+  return Math.abs(boundingBox.height);
 }

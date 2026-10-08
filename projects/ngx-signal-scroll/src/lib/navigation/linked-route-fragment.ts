@@ -1,7 +1,6 @@
-
-import {effect, inject, linkedSignal, WritableSignal} from '@angular/core';
+import { effect, inject, linkedSignal, WritableSignal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import {ActivatedRoute, Router} from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 /**
  * Erstellt ein bidirektional synchronisiertes Angular-Signal für das URL-Fragment (`#fragment`).
@@ -45,12 +44,11 @@ export function linkedRouteFragment(): WritableSignal<string | null | undefined>
         queryParamsHandling: 'preserve',
       });
 
-      router.navigateByUrl(tree, { replaceUrl: true }).catch( (error: Error) => {
+      router.navigateByUrl(tree, { replaceUrl: true }).catch((error: Error) => {
         console.log(`Cant set fragment ${newFragment}`, error);
       });
     }
   });
 
   return actualFragment;
-
 }

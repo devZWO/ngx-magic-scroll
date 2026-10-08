@@ -1,4 +1,4 @@
-import {ElementRef, inject} from "@angular/core";
+import { ElementRef, inject } from '@angular/core';
 
 /**
  * Ermittelt das am nächsten liegende scrollbare Eltern-Element (Ancestor) im DOM.
@@ -21,13 +21,17 @@ import {ElementRef, inject} from "@angular/core";
  * const scrollParent = injectScrollableParentElement(myHtmlElement);
  * ```
  */
-export function injectScrollableParentElement(hostElement?: HTMLElement | null): HTMLElement | undefined {
-
+export function injectScrollableParentElement(
+  hostElement?: HTMLElement | null,
+): HTMLElement | undefined {
   function findScrollableParent(el: HTMLElement): HTMLElement | undefined {
     let current = el.parentElement ?? undefined;
     while (current) {
       const overflowY = getComputedStyle(current).overflowY;
-      if ((overflowY === 'auto' || overflowY === 'scroll') /**&& current.scrollHeight > current.clientHeight **/) {
+      if (
+        overflowY === 'auto' ||
+        overflowY === 'scroll' /**&& current.scrollHeight > current.clientHeight **/
+      ) {
         return current;
       }
       current = current.parentElement ?? undefined;
@@ -35,6 +39,7 @@ export function injectScrollableParentElement(hostElement?: HTMLElement | null):
     return undefined;
   }
 
-  return findScrollableParent(hostElement ?? inject(ElementRef<HTMLElement>).nativeElement as HTMLElement);
-
+  return findScrollableParent(
+    hostElement ?? (inject(ElementRef<HTMLElement>).nativeElement as HTMLElement),
+  );
 }
