@@ -41,6 +41,7 @@ pnpm start
 | `pnpm e2e:install`      | Download Playwright browsers                            |
 | `pnpm e2e:install:deps` | Install browser system dependencies if needed           |
 | `pnpm e2e`              | Run tests against the demo in Chromium, Firefox, WebKit |
+| `pnpm recipes:check`    | Compile recipe TypeScript and Angular templates         |
 | `pnpm docs:dev`         | Start the documentation site                            |
 | `pnpm package:check`    | Build and inspect the publishable package               |
 | `pnpm release:check`    | Run the complete local release validation               |

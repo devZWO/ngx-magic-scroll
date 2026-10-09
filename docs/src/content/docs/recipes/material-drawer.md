@@ -11,6 +11,8 @@ Place a section list inside Angular Material's drawer layout, with navigation in
 
 Use this in an application that already has Angular Material and its theme configured, and provides Angular Router. The library requires no Material-specific adapter.
 
+<!-- recipe-check: material-drawer-0.ts -->
+
 ```ts
 import { Component } from '@angular/core';
 import { MatSidenavModule } from '@angular/material/sidenav';

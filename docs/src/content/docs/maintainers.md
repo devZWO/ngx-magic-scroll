@@ -63,6 +63,8 @@ pnpm e2e
 
 Playwright runs the demo in Chromium, Firefox and WebKit. If your system is missing browser dependencies, use `pnpm e2e:install:deps`.
 
+Run `pnpm recipes:check` when editing recipes. Complete TypeScript examples marked with `<!-- recipe-check: filename.ts -->` are compiled directly from Markdown with strict Angular template checks. Data-source integration tests use real resources, NgRx stores and TanStack queries with controlled test data; they require no backend.
+
 Format changed files with Prettier and run `pnpm release:check` before opening a pull request. This command runs the complete validation, including builds, browser tests and package checks. See the [contribution guide](https://github.com/devZWO/ngx-magic-scroll/blob/main/CONTRIBUTING.md) for the full requirements.
 
 ## Project philosophy

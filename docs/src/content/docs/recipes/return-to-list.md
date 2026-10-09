@@ -11,6 +11,8 @@ Open an item's detail page and return to the same list section, using either bro
 
 Provide these routes through your application's existing `provideRouter(routes)` configuration:
 
+<!-- recipe-check: app.routes.ts -->
+
 ```ts
 import { Routes } from '@angular/router';
 import { ProjectsComponent } from './projects.component';
@@ -23,6 +25,8 @@ export const routes: Routes = [
 ```
 
 In `projects.component.ts`, use stable IDs and capture the selected item before leaving the list:
+
+<!-- recipe-check: projects.component.ts -->
 
 ```ts
 import { Component, inject } from '@angular/core';
@@ -73,6 +77,8 @@ export class ProjectsComponent {
 `openDetails()` first records the clicked item's fragment in the list's current history entry, then waits for that URL update before navigating to the detail page. This avoids relying on the scroll-spy debounce or racing two navigations. Both this update and scroll-spy updates replace the current entry; detail navigation creates the next entry.
 
 In `project-details.component.ts`, use the route ID for an explicit return link:
+
+<!-- recipe-check: project-details.component.ts -->
 
 ```ts
 import { Component, inject } from '@angular/core';

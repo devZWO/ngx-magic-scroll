@@ -13,6 +13,8 @@ This follows the portfolio-store pattern used in zwoPRO: the store owns projects
 
 A minimal `projects.store.ts` distinguishes data that has not loaded yet from a successful empty result:
 
+<!-- recipe-check: projects.store.ts -->
+
 ```ts
 import { patchState, signalStore, withMethods, withState } from '@ngrx/signals';
 
@@ -54,6 +56,8 @@ export const ProjectsStore = signalStore(
 Use your existing API service or `rxMethod` implementation instead of `fetch` if the store already handles requests. Here `/api/projects` is an application endpoint returning a project array.
 
 In `store-projects.component.ts`, provide the store and map its signals to the neutral `ScrollDataSource` contract:
+
+<!-- recipe-check: store-projects.component.ts -->
 
 ```ts
 import { Component, inject } from '@angular/core';

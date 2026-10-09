@@ -35,19 +35,19 @@ export function readScrollSource(source: ScrollSource | typeof NO_SCROLL_SOURCE)
   if (source === NO_SCROLL_SOURCE) return { ready: true, data: source };
   let data: unknown = source;
   while (isSignal(data)) data = data();
-  if (
-    data !== null &&
-    typeof data === 'object' &&
-    'isLoading' in data &&
-    typeof data.isLoading === 'function'
-  ) {
-    if (data.isLoading()) return { ready: false, data: undefined };
-    if ('value' in data && typeof data.value === 'function') {
-      const resource = data as ScrollResource;
-      // Reading an Angular resource's value in an error state can throw.
-      data = resource.hasValue && !resource.hasValue() ? undefined : resource.value();
-    } else if ('data' in data && typeof data.data === 'function') {
-      data = data.data();
+  if (data !== null && typeof data === 'object') {
+    // Query results may be proxies whose `has` trap reflects the current value.
+    // Read the loading getter directly: `isLoading in source` can be false when idle.
+    const candidate = data as { isLoading?: unknown; data?: unknown };
+    if (typeof candidate.isLoading === 'function') {
+      if (candidate.isLoading()) return { ready: false, data: undefined };
+      if ('value' in data && typeof data.value === 'function') {
+        const resource = data as ScrollResource;
+        // Reading an Angular resource's value in an error state can throw.
+        data = resource.hasValue && !resource.hasValue() ? undefined : resource.value();
+      } else if (typeof candidate.data === 'function') {
+        data = candidate.data();
+      }
     }
   }
   return { ready: data !== undefined && data !== null, data };

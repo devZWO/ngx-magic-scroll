@@ -11,6 +11,8 @@ Build a small section navigation that scrolls on click and highlights the curren
 
 Start with an Angular application that provides Router, as described in [Getting started](../../getting-started/). This complete component uses static content:
 
+<!-- recipe-check: scroll-to-anchor-0.ts -->
+
 ```ts
 import { Component } from '@angular/core';
 import {

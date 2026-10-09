@@ -13,6 +13,8 @@ If your application uses `@tanstack/angular-query-experimental`, its reactive `d
 
 Register the query client alongside your existing Angular Router providers in `app.config.ts`:
 
+<!-- recipe-check: tanstack-query-0.ts -->
+
 ```ts
 import { ApplicationConfig } from '@angular/core';
 import { provideRouter } from '@angular/router';
@@ -24,6 +26,8 @@ export const appConfig: ApplicationConfig = {
 ```
 
 Use your actual routes in place of `[]`. Then render a query in your component:
+
+<!-- recipe-check: tanstack-query-1.ts -->
 
 ```ts
 import { Component } from '@angular/core';

@@ -11,6 +11,8 @@ Open a URL such as `/projects#project-2` before the projects have loaded, then r
 
 Import `MagicScrollDirective` and pass the `rxResource` itself to `scrollSource`. This self-contained example simulates an Observable API request; replace `of(...).pipe(delay(...))` with your service's Observable.
 
+<!-- recipe-check: rx-resource-0.ts -->
+
 ```ts
 import { Component } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';

@@ -13,6 +13,8 @@ The fragment identifies the item; a query parameter records how much data must b
 
 This compact version of the drawer demo simulates a server that returns the requested range:
 
+<!-- recipe-check: paginated-lists-0.ts -->
+
 ```ts
 import { Component, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
@@ -103,6 +105,8 @@ Appending items does not automatically scroll to the newly added item. If you wa
 For `@tanstack/angular-query-experimental`, keep the same URL contract and pass the Infinite Query directly. Configure the query client as shown in [TanStack Query](../tanstack-query/).
 
 This component expects an endpoint accepting `offset` and `limit` and returning a project array. It requests the saved range in the first fetch, then adds eight items per subsequent page:
+
+<!-- recipe-check: paginated-lists-1.ts -->
 
 ```ts
 import { Component, computed, inject } from '@angular/core';

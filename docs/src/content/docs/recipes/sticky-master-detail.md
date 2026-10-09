@@ -11,6 +11,8 @@ Build a portfolio page with a sticky header, an independently scrollable project
 
 This compact version of the master–detail demo uses static projects so the layout is easy to see. Angular Router must be provided by the application.
 
+<!-- recipe-check: sticky-master-detail-0.ts -->
+
 ```ts
 import { Component, signal } from '@angular/core';
 import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scroll';

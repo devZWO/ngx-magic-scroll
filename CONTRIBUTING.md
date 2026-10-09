@@ -9,3 +9,9 @@ Use strict TypeScript, standalone Angular components, signals, native control fl
 Before opening a pull request, run `pnpm release:check`. Run `pnpm format` on changed files. Include meaningful tests for behavior changes and update docs when the API changes.
 
 Be respectful in issues and reviews. Contributions are submitted under this repository's MIT license. Only submit material you have the right to contribute.
+
+## Recipe examples
+
+Run `pnpm recipes:check` after changing recipes. It builds the public package and compiles the complete TypeScript examples marked with `<!-- recipe-check: filename.ts -->` in the Markdown source, including strict Angular template checks. Use unique filenames and matching relative imports for examples spanning multiple files. Small context-dependent override snippets are not standalone compilation units.
+
+Data-source integration tests use real Angular resources, NgRx Signal Store and TanStack Query with controlled Observables and Promises. No backend is required. Keep NgRx and TanStack as development dependencies only. Browser layout and actual scrolling remain covered by the demo's Playwright tests.
