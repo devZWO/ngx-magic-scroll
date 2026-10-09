@@ -25,17 +25,19 @@ export async function atOffset(page: Page, anchor: string, container: string, of
           (el, args) =>
             Math.abs(
               el.getBoundingClientRect().top -
-                document.querySelector(args.container)!.getBoundingClientRect().top -
-                args.offset,
+              document.querySelector(args.container)!.getBoundingClientRect().top -
+              args.offset,
             ),
           { container, offset },
         ),
     )
     .toBeLessThan(2);
 }
+
 export async function aligned(page: Page, anchor: string, container: string) {
   await atOffset(page, anchor, container, 0);
 }
+
 export async function placeAnchor(page: Page, anchor: string, container: string, top: number) {
   await page.locator(anchor).evaluate(
     (el, args) => {

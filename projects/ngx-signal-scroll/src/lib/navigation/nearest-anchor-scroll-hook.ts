@@ -1,6 +1,7 @@
 import {
   AfterViewInit,
   computed,
+  debounced,
   Directive,
   effect,
   ElementRef,
@@ -8,10 +9,10 @@ import {
   input,
   OnDestroy,
   output,
+  signal,
 } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { NearestAnchorProvider } from './nearest-anchor.provider';
-import { debounceSignal } from '@ddtmm/angular-signal-generators';
 import { injectScrollableParentElement } from './inject-scrollable-parent';
 
 /**
@@ -71,10 +72,19 @@ export class NearestAnchorScrollHook implements AfterViewInit, OnDestroy {
   private readonly _document = inject(DOCUMENT);
   private _scrollTarget?: EventTarget;
 
-  private readonly _scrolled = debounceSignal<Event | undefined>(undefined, this.debounceTime);
+  private readonly _scrollEvent = signal<Event | undefined>(undefined);
+  private _debounceTimer?: ReturnType<typeof setTimeout>;
+  // A custom wait function keeps the input delay configurable. Angular discards stale
+  // promises; we also cancel their timers when another event arrives or the host is destroyed.
+  private readonly _scrolled = debounced(this._scrollEvent, () => {
+    clearTimeout(this._debounceTimer);
+    return new Promise<void>((resolve) => {
+      this._debounceTimer = setTimeout(resolve, this.debounceTime());
+    });
+  });
 
   private readonly _nearestAnchor = computed(() =>
-    this._scrolled()
+    this._scrolled.value()
       ? (this._nearestAnchorProvider.getNearestAnchor({
           hostElement: this._host.nativeElement as HTMLElement,
           selector: this._selector(),
@@ -95,10 +105,11 @@ export class NearestAnchorScrollHook implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit() {
     this._scrollTarget = injectScrollableParentElement(this._host.nativeElement) ?? this._document;
-    this._scrollTarget.addEventListener('scroll', this._scrolled.set);
+    this._scrollTarget.addEventListener('scroll', this._scrollEvent.set);
   }
 
   ngOnDestroy(): void {
-    this._scrollTarget?.removeEventListener('scroll', this._scrolled.set);
+    this._scrollTarget?.removeEventListener('scroll', this._scrollEvent.set);
+    clearTimeout(this._debounceTimer);
   }
 }

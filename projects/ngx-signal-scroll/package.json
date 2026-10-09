@@ -6,8 +6,7 @@
     "@angular/core": "^22.2.0",
     "@angular/router": "^22.2.0",
     "rxjs": "^7.8.0",
-    "ngxtension": "^7.0.0",
-    "@ddtmm/angular-signal-generators": "^4.0.1"
+    "ngxtension": "^7.0.0"
   },
   "dependencies": {
     "tslib": "^2.3.0"

@@ -2,7 +2,7 @@
 
 Anchor scrolling, URL synchronization and position restoration for Angular.
 
-**Pre-release:** the API is still under review. Requires Angular 22.2 and RxJS 7.8. Internal integrations also use ngxtension and Angular signal generators as peer dependencies; see `package.json` for precise ranges.
+**Pre-release:** the API is still under review. Requires Angular 22.2 and RxJS 7.8. Internal integrations also use ngxtension as a peer dependency and Angular's experimental `debounced` API; see `package.json` for precise ranges.
 
 ## Minimal usage
 
