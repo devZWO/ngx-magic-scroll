@@ -1,35 +1,63 @@
 ---
-title: Anchors and navigation
+title: Scroll regions and anchor identity
+description: Understand anchor selection, region ownership and the container that actually scrolls.
+sidebar:
+  order: 1
 ---
 
-Stable HTML IDs identify sections independently of their pixel positions. `magicScroll` manages a region's URL fragment, selected scroll container and anchor restoration. URL updates use `replaceUrl` and preserve query parameters.
+An anchor identifies a section of content independently of its pixel position. A scroll region defines which anchors `magicScroll` manages; the scroll container determines which viewport moves. Keeping these three roles separate helps you design layouts that remain navigable as content changes.
 
-## Anchor selection and scope
+## Stable IDs identify content
 
-Without a prefix, all descendant IDs participate. `anchorPrefix` restricts automatic selection; setting it to `''` locally clears an inherited prefix. Optional `scrollAnchor` markers participate even outside the prefix. `[scrollAnchor]="id"` also sets the element's ID.
+The URL fragment `#project-12` refers to the element with ID `project-12`. On restoration, the library finds that element's current position. Inserting content above it can change its coordinates without changing what the link means.
 
-Targets belong to their closest `magicScroll` region. A parent region excludes anchors owned by nested regions. IDs must be unique across the document. A scrollable host, scrollable ancestor or document can own scrolling.
+Use IDs derived from the identity of your content, such as a project ID. An array index is unsuitable when sorting, filtering or inserting items can make it refer to a different item. IDs must be unique across the entire document, including across separate regions.
 
-## Data readiness
+Restoration returns to an anchor's position with the configured top offset. It does not remember the exact pixel distance the user had scrolled into that section.
 
-Omitting `scrollSource` restores once after the first rendered DOM, which covers static content and resolver-loaded data. A supplied signal, plain input value or provider source waits while data is null/undefined or loading. Empty arrays, zero, false and empty strings count as ready.
+## A region selects its anchors
 
-Angular resources use their `isLoading()`, `hasValue()` and `value()` state; an error with no value cannot trigger restoration. Retrying and rendering error states belong to the application. Neutral sources expose reactive `data()` and `isLoading()` getters. For signal forms, pass the value signal (e.g. `form().value`), not the field tree itself.
+By default, all descendant elements with non-empty IDs participate. This includes IDs on headings or controls, so a region can contain more anchors than your section navigation exposes.
 
-Initial restoration captures the fragment when the region is created and runs once when its source is ready. If the target is missing at that first ready render, it does not retry initial restoration later. Missing or unknown fragments do not initiate a scroll or rewrite the URL.
+Use `anchorPrefix` to restrict automatic selection, and `scrollAnchor` to explicitly include an element even when its ID does not match the prefix:
 
-## Scroll causes and defaults
+```html
+<div magicScroll [scrollOptions]="{ anchorPrefix: 'project-' }">
+  <section id="overview" scrollAnchor>Overview...</section>
+  <section id="project-planning">
+    <h2 id="planning-heading">Planning</h2>
+  </section>
+  <section [scrollAnchor]="'project-delivery'">Delivery...</section>
+</div>
+```
 
-The default `behavior.restoration` is `instant`; it applies to navigation, reload and the first asynchronous load. The default `behavior.interaction` is `smooth`; it applies to `scroll.scrollTo(id)`. Provider defaults are inherited, then overridden by region `scrollOptions`, then by per-call options.
+The anchors here are `overview`, `project-planning` and `project-delivery`. The heading's ID is excluded. The bound marker also assigns the element's ID; import `ScrollAnchorDirective` when using either marker form.
 
-Later data changes preserve the current fragment, rather than the initial fragment, and use instant corrections when the target's top edge is no longer visible. Resize and header-height changes also correct instantly. `restoreOnDataChange` and `preserveOnResize` can disable data and resize/header corrections respectively. Header measurement follows the configured header automatically with a `ResizeObserver`.
+The same selection applies to scroll-spy tracking, initial restoration and `scrollTo()`. An element can exist in the DOM and still be unavailable to this region because it is excluded by the selection rules. Setting `anchorPrefix: ''` on a region clears an inherited prefix and includes all its descendant IDs again.
 
-`headerOffset` is the gap below the measured header (or the entire offset without a header). `scroll.offset()` exposes the total; `scroll.headerHeight()` exposes the header measurement for sticky master panels. Per-call `topOffset` overrides the entire offset.
+## Each anchor belongs to its closest region
 
-Visibility rules are unchanged: `none` always scrolls, `top` skips when the top edge is visible, `full` skips when both edges are visible and `always` skips when at least one edge is visible. An oversized target with both edges outside the viewport still scrolls for `always`.
+With nested `magicScroll` regions, each anchor belongs to the closest region containing it. The outer region excludes anchors inside the inner region, even if their IDs match its prefix or have explicit markers.
 
-## Migration and verification
+For example, an outer article can manage its section headings while an inner list manages its items. Calling the outer region's `scrollTo()` with an inner item ID returns `false`. Call the directive instance that owns the target instead.
 
-The facade reuses the internal scroll service, anchor provider, scroll-parent detection and route-fragment synchronization. These implementation details and the former automatic directives are no longer package exports. Migrate their uses to `magicScroll`, `scrollOptions` and `scroll.scrollTo()`; use `scroll.activeAnchor()` for the current fragment.
+Region ownership separates target selection. It does not create independent URL state: a route has one fragment, and regions connected to that route share it. Plan which region should control shareable navigation when multiple regions are active.
 
-All four demos use the facade. Their 25 existing browser scenarios pass unchanged across Chromium, Firefox and WebKit. New facade contracts (source normalization, provider inheritance, optional anchors and scoped targets) have separate unit tests. Complete unit coverage does not imply that every possible application layout has been tested.
+## The region and scroll container can be different elements
+
+`magicScroll` chooses the container from the layout:
+
+1. The region host itself, if its computed vertical overflow is `auto` or `scroll`.
+2. Otherwise, the closest ancestor with either overflow value.
+3. Otherwise, the document.
+
+CSS supplies the height constraints and overflow that make that container scroll. Adding `magicScroll` alone does not create a scrolling viewport.
+
+A detail region can therefore scroll with the document while a companion sidebar scrolls independently. If the sidebar sits outside the region, its IDs do not become detail anchors. Conversely, placing the region inside a constrained drawer makes the drawer content the scroll container.
+
+## Related documentation
+
+- [URL state and navigation](../url-state-and-navigation/) explains how selected anchors become URL state.
+- [Anchor navigation](../../recipes/scroll-to-anchor/) implements prefix selection, markers and navigation highlighting.
+- [Angular Material Drawer](../../recipes/material-drawer/) shows a constrained scroll container.
+- [MagicScrollDirective](../../api/classes/magicscrolldirective/) and [ScrollAnchorDirective](../../api/classes/scrollanchordirective/) document the directive APIs.

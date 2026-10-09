@@ -31,9 +31,58 @@ export default defineConfig({
         },
         {
           label: 'Recipes',
-          items: [{ autogenerate: { directory: 'recipes' } }],
+          items: [
+            {
+              label: 'Navigation',
+              items: [{ slug: 'recipes/scroll-to-anchor' }, { slug: 'recipes/return-to-list' }],
+            },
+            {
+              label: 'Data sources',
+              items: [
+                { slug: 'recipes/rx-resource' },
+                { slug: 'recipes/ngrx-signal-store' },
+                { slug: 'recipes/tanstack-query' },
+              ],
+            },
+            {
+              label: 'Layouts and changing content',
+              items: [
+                { slug: 'recipes/sticky-master-detail' },
+                { slug: 'recipes/material-drawer' },
+                { slug: 'recipes/paginated-lists' },
+              ],
+            },
+          ],
         },
-        { label: 'API', items: [{ autogenerate: { directory: 'api' } }] },
+        {
+          label: 'API',
+          items: [
+            { label: 'readme', slug: 'api/readme' },
+            {
+              label: 'Directives',
+              items: [{ autogenerate: { directory: 'api/classes' } }],
+            },
+            {
+              label: 'Providers',
+              items: [{ autogenerate: { directory: 'api/functions' } }],
+            },
+            {
+              label: 'Options',
+              items: [
+                { slug: 'api/interfaces/magicscrolloptions' },
+                { slug: 'api/type-aliases/magicscrolltooptions' },
+              ],
+            },
+            {
+              label: 'Data sources',
+              items: [
+                { slug: 'api/type-aliases/scrollsource' },
+                { slug: 'api/interfaces/scrollresource' },
+                { slug: 'api/interfaces/scrolldatasource' },
+              ],
+            },
+          ],
+        },
         { label: 'Maintainers', slug: 'maintainers' },
       ],
     }),

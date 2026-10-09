@@ -1,0 +1,49 @@
+---
+title: Concepts overview
+description: Explore how scroll regions, URL state, data readiness and position preservation work together.
+sidebar:
+  order: 0
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+`ngx-magic-scroll` connects stable content IDs to the route fragment and the position of a scroll container. Regions define eligible targets, URL state identifies the section, data readiness determines when initial restoration can run, and position preservation handles later changes.
+
+Read the concepts in order for the full model, or choose the topic relevant to your application.
+
+<CardGrid>
+  <Card title="Scroll regions and anchor identity" icon="document">
+    Which elements belong to a region, and which container actually scrolls?
+
+    Understand stable IDs, anchor selection and ownership in nested regions.
+
+    [Explore regions and anchors](./anchors/)
+
+  </Card>
+  <Card title="URL state and navigation" icon="document">
+    How do the fragment, scroll spy and explicit navigation work together?
+
+    Understand what the active anchor represents, how history entries are updated and when navigation causes scrolling.
+
+    [Explore URL state and navigation](./url-state-and-navigation/)
+
+  </Card>
+  <Card title="Data readiness and restoration" icon="document">
+    When can a linked section be restored?
+
+    Follow the initial restoration sequence and learn what your application must load and render before declaring readiness.
+
+    [Explore readiness and restoration](./data-readiness-and-restoration/)
+
+  </Card>
+  <Card title="Position preservation and layout changes" icon="document">
+    What happens when data or layout changes after restoration?
+
+    Understand the current anchor, automatic corrections and the offset shared by scrolling and sticky companion panels.
+
+    [Explore position preservation](./position-preservation/)
+
+  </Card>
+</CardGrid>
+
+For your first working region, start with [Getting started](../getting-started/). For complete implementation examples, use the [Recipes](../recipes/scroll-to-anchor/); for signatures and configuration details, consult the [API reference](../api/readme/).
