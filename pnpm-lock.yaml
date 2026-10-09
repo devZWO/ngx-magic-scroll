@@ -227,9 +227,6 @@ importers:
       ng-packagr:
         specifier: ^22.2.0
         version: 22.2.4(@angular/compiler-cli@22.2.1(@angular/compiler@22.2.1)(typescript@6.0.3))(supports-color@8.1.1)(tslib@2.8.1)(typescript@6.0.3)
-      ngxtension:
-        specifier: ^7.0.0
-        version: 7.3.1(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2)
       prettier:
         specifier: ^3.8.1
         version: 3.9.9
@@ -3525,18 +3522,6 @@ packages:
       typescript: '>=6.0 <6.1'
     peerDependenciesMeta:
       tailwindcss:
-        optional: true
-
-  ngxtension@7.3.1:
-    resolution: {integrity: sha512-QaJUdKvBQnuxqbRtOdMrh+nRj9fL/pA//glNjHytnUsshGbxEt4MUgHzGIY9WVArXe0dVSgHuQ5wq9IhKXoT4w==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@angular/common': '>=19.0.0'
-      '@angular/core': '>=19.0.0'
-      '@use-gesture/vanilla': ^10.0.0
-      rxjs: ^6.0.0 || ^7.0.0
-    peerDependenciesMeta:
-      '@use-gesture/vanilla':
         optional: true
 
   nlcst-to-string@4.0.0:
@@ -7841,13 +7826,6 @@ snapshots:
       - oxc-resolver
       - supports-color
       - vue-tsc
-
-  ngxtension@7.3.1(@angular/common@22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2):
-    dependencies:
-      '@angular/common': 22.2.1(@angular/core@22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@angular/core': 22.2.1(@angular/compiler@22.2.1)(rxjs@7.8.2)
-      rxjs: 7.8.2
-      tslib: 2.8.1
 
   nlcst-to-string@4.0.0:
     dependencies:

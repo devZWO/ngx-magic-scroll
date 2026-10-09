@@ -14,7 +14,7 @@ pnpm start
 
 The demo runs on `http://localhost:4200`. Start these docs with `pnpm docs:dev`.
 
-The intended npm package is `@devzwo/ngx-magic-scroll`. It has not yet been published from this repository. The current source requires Angular 22.2, RxJS and ngxtension, and uses Angular's experimental [`debounced` API](https://angular.dev/guide/signals/debounced) internally; inspect the library's `package.json` for supported peer dependency ranges.
+The intended npm package is `@devzwo/ngx-magic-scroll`. It has not yet been published from this repository. The current source requires Angular 22.2 and RxJS, and uses Angular's experimental [`debounced` API](https://angular.dev/guide/signals/debounced) internally; inspect the library's `package.json` for supported peer dependency ranges.
 
 ## One directive for the common case
 

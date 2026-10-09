@@ -1,6 +1,6 @@
 import { Directive, ElementRef, inject, Injector, input, OnInit } from '@angular/core';
-import { injectRouteFragment } from 'ngxtension/inject-route-fragment';
-import { effectOnceIf } from 'ngxtension/effect-once-if';
+import { injectRouteFragment } from './inject-route-fragment';
+import { effectOnceIf } from '../effects/effect-once-if';
 import { ScrollDataSource } from './scroll-data-source';
 import { ScrollService } from './scroll-service';
 import { injectScrollableParentElement } from './inject-scrollable-parent';

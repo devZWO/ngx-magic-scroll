@@ -2,7 +2,7 @@
 
 Anchor scrolling, URL synchronization and position restoration for Angular.
 
-**Pre-release:** the API is still under review. Requires Angular 22.2 and RxJS 7.8. Internal integrations also use ngxtension as a peer dependency and Angular's experimental `debounced` API; see `package.json` for precise ranges.
+**Pre-release:** the API is still under review. Requires Angular 22.2 and RxJS 7.8. Internal integrations use Angular's experimental `debounced` API; see `package.json` for precise ranges.
 
 ## Minimal usage
 
@@ -112,3 +112,7 @@ Four routed examples demonstrate document synchronization, asynchronous navigati
 [Documentation and API](https://devzwo.github.io/ngx-magic-scroll/) · [Source and issues](https://github.com/devZWO/ngx-magic-scroll)
 
 MIT, copyright 2026 devZWO GmbH.
+
+Two internal helpers are adapted from ngxtension 7.3.1 under the MIT license. See [THIRD_PARTY_NOTICES.txt](./THIRD_PARTY_NOTICES.txt) for their origin, local changes and original license.
+
+Production builds retain the original MIT notice in the JavaScript bundle for license extraction. Applications redistributing this code must retain its copyright and license notices, including when minifying or rebundling it.

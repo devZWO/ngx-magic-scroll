@@ -1,5 +1,5 @@
 import { Directive, ElementRef, inject, Injector, input, OnInit, untracked } from '@angular/core';
-import { injectRouteFragment } from 'ngxtension/inject-route-fragment';
+import { injectRouteFragment } from './inject-route-fragment';
 import { ScrollDataSource } from './scroll-data-source';
 import { effectSkipFirstIf } from '../effects/effect-skip-first-if';
 import { injectScrollableParentElement } from './inject-scrollable-parent';

@@ -63,6 +63,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/demo/public"
+              },
+              {
+                "glob": "THIRD_PARTY_NOTICES.txt",
+                "input": "projects/ngx-signal-scroll",
+                "output": "/"
               }
             ],
             "styles": ["projects/demo/src/styles.scss"]
