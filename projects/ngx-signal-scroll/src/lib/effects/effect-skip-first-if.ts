@@ -1,18 +1,16 @@
 import { EffectRef, effect, Injector } from '@angular/core';
 
 /**
- * Erstellt einen Angular `effect`, der die angegebene Aktion erst ab dem **zweiten** erfolgreichen
- * Eintreffen der Bedingung (`predicate() === true`) ausführt.
+ * Creates an Angular effect that runs its action starting with the second successful
+ * predicate evaluation (predicate() === true).
  *
- * Das allererste Mal, wenn `predicate()` wahr wird, wird gezählt und übersprungen.
- * Dies ist besonders nützlich, wenn initiale Ladezustände von nachfolgenden Updates (z. B. Refetches,
- * Filteränderungen, Paging) unterschieden werden sollen.
+ * Counts and skips the first successful evaluation. Useful for distinguishing an initial
+ * load from subsequent updates such as refetching, filtering or pagination.
  *
- * @param predicate - Eine Funktion, die einen booleschen Wert liefert. Signale darin werden getrackt.
- * @param action - Die Seiteneffekt-Aktion, die erst ab dem zweiten Zutreffen von `predicate()` aufgerufen wird.
- * @param options - Optionale Parameter (z. B. Angabe eines expliziten `Injector`s).
- * @returns Die erstellte `EffectRef`-Instanz.
- *
+ * @param predicate - Boolean predicate. Signals read within it are tracked.
+ * @param action - Side effect to run from the second successful predicate evaluation onward.
+ * @param options - Optional effect settings, such as an explicit Injector.
+ * @returns The created EffectRef.
  * @example
  * ```ts
  * effectSkipFirstIf(

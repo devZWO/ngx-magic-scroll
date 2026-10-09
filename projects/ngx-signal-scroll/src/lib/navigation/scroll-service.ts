@@ -2,42 +2,38 @@ import { inject, Injectable } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 
 /**
- * Optionen für die Ausführung eines Scroll-Vorgangs über den `ScrollService`.
+ * Options for a scroll operation performed by ScrollService.
  */
 export interface ScrollOptions {
   /**
-   * Das übergeordnete scrollbare Container-Element.
-   * Standardmäßig das scrollende Dokument-Element.
+   * Scrollable container. Defaults to the document's scrolling element.
    */
   scrollable?: HTMLElement;
   /**
-   * Scroll-Verhalten: `'instant'` (sofortiger Sprung) oder `'smooth'` (weiche Animation).
-   * Standardmäßig `'instant'`.
+   * Scroll behavior: 'instant' for an immediate jump, 'smooth' for animation,
+   * or 'auto' to follow the browser's CSS scroll behavior. Defaults to 'instant'.
    */
   behavior?: ScrollBehavior;
   /**
-   * Bedingung, unter der das Scrollen übersprungen werden soll, wenn sich das Ziel bereits im Viewport befindet:
-   * - `'none'`: Immer scrollen (Standard).
-   * - `'top'`: Scrollen überspringen, wenn die Oberkante des Elements bereits im Sichtbereich ist.
-   * - `'full'`: Scrollen überspringen, wenn das Element vollständig sichtbar ist.
-   * - `'always'`: Scrollen überspringen, wenn die Ober- oder Unterkante sichtbar ist.
+   * Visibility condition under which scrolling is skipped:
+   * - 'none': Always scroll (default).
+   * - 'top': Skip when the element's top edge is visible.
+   * - 'full': Skip when the entire element is visible.
+   * - 'always': Skip when either the top or bottom edge is visible.
    */
   ignoreWhenInView?: 'none' | 'top' | 'full' | 'always';
   /**
-   * Zusätzlicher oberer Abstand in Pixeln zum Ziel (z. B. für Header oder Padding).
-   * Standardmäßig `20` Pixel.
+   * Additional top offset for the target, in pixels, for example for a header or padding.
+   * Defaults to 20 pixels.
    */
   topOffset?: number;
 }
 
 /**
- * Zentraler Service für standardisierte und kontrollierte Scroll-Vorgänge zu DOM-Elementen / Ankern.
+ * Central service for scrolling to DOM elements and anchors.
  *
- * Unterstützt:
- * - Gezieltes Scrollen innerhalb beliebiger Container (`scrollable`) oder des gesamten Viewports.
- * - Konfigurierbare Offsets (z. B. zum Ausgleich fixer Header).
- * - Sichtbarkeitsprüfungen (`ignoreWhenInView`), um unnötige Ruckler zu vermeiden.
- * - Weiches (`smooth`) oder sofortiges (`instant`) Scrollverhalten.
+ * Supports explicit scroll containers or document scrolling, configurable header offsets,
+ * visibility checks to avoid unnecessary movement, and smooth or instant scrolling.
  */
 @Injectable({
   providedIn: 'root',
@@ -47,18 +43,17 @@ export class ScrollService {
   private readonly TOP_OFFSET = 20;
 
   /**
-   * Führt einen Scroll-Vorgang zu dem durch die ID angegebenen Element aus.
+   * Scrolls to the element identified by its ID.
    *
-   * @param anchor - Die HTML-Element-ID des Ziels (ohne oder mit vorangestelltem `#`).
-   * @param options - Optionale Parameter für Scrollable-Container, Verhalten, Offsets und Sichtbarkeitsfilter.
-   * @returns `true`, wenn das Ziel-Element gefunden und der Scroll-Vorgang ausgelöst wurde; andernfalls `false`.
-   *
+   * @param anchor - Target HTML element ID, with or without a leading #.
+   * @param options - Scroll container, behavior, offset and visibility settings.
+   * @returns True when the target exists and scrolling is initiated; otherwise false.
    * @example
    * ```ts
-   * // Einfaches Scrollen
+   * // Simple scrolling
    * scrollService.scroll('section-details');
    *
-   * // Mit Optionen
+   * // With options
    * scrollService.scroll('card-123', {
    *   scrollable: scrollContainerElement,
    *   behavior: 'smooth',

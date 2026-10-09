@@ -6,14 +6,11 @@ import { ScrollService } from './scroll-service';
 import { injectScrollableParentElement } from './inject-scrollable-parent';
 
 /**
- * Direktive für das einmalige initiale Scrollen zu einem in der URL angegebenen Anker (#fragment),
- * sobald asynchrone Daten (z. B. via rxResource) zum ersten Mal erfolgreich geladen wurden.
+ * Scrolls once to the initial URL anchor (#fragment) after asynchronous data first loads successfully.
  *
- * Löst das Problem, dass beim Seitenaufruf mit einem Fragment in der URL das Zielelement
- * noch gar nicht im DOM existiert, weil die Daten erst asynchron per API geladen werden.
- * Sobald `queryResult.data()` vorhanden und `isLoading()` `false` ist, wird genau einmal
- * zum Anker gescrollt.
- *
+ * When a page is opened with a fragment, the target may not yet exist in the DOM because
+ * its data is loaded asynchronously. Scrolls exactly once when queryResult.data() is
+ * available and isLoading() is false.
  * @example
  * ```html
  * <div
@@ -21,7 +18,7 @@ import { injectScrollableParentElement } from './inject-scrollable-parent';
  *   [onlyOnceScrollBehavior]="'instant'"
  *   [onlyOnceTopOffset]="20"
  * >
- *   <!-- Liste von asynchron geladenen Elementen -->
+ *   <!-- List of asynchronously loaded elements -->
  * </div>
  * ```
  */
@@ -34,22 +31,22 @@ export class ScrollToFragmentOnFirstDataDirective implements OnInit {
     that can be applied simultaneously, that's why we need different specific external names
    */
   /**
-   * Das anbieterneutrale Datenquelle (z. B. `injectInfiniteQuery`), dessen Datenzustand überwacht wird.
+   * Provider-neutral data source whose loading and data state are observed.
    */
   public readonly queryResult = input.required<ScrollDataSource>({
     alias: 'appScrollingOnFirstData',
   });
 
   /**
-   * Das gewünschte Scroll-Verhalten beim initialen Sprung ('instant', 'smooth', 'auto').
-   * Standardmäßig `'instant'`.
+   * Scroll behavior for the initial jump ('instant', 'smooth' or 'auto').
+   * Defaults to 'instant'.
    */
   public readonly scroll = input<'instant' | 'smooth' | 'auto'>('instant', {
     alias: 'onlyOnceScrollBehavior',
   });
 
   /**
-   * Zusätzlicher oberer Abstand in Pixeln zum Zielanker.
+   * Additional top offset, in pixels, for the target anchor.
    */
   public readonly topOffset = input(0, { alias: 'onlyOnceTopOffset' });
   /* eslint-enable @angular-eslint/no-input-rename */

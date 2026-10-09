@@ -3,26 +3,24 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 
 /**
- * Erstellt ein bidirektional synchronisiertes Angular-Signal für das URL-Fragment (`#fragment`).
+ * Creates an Angular signal synchronized bidirectionally with the URL fragment (#fragment).
  *
- * Diese Hilfsfunktion ermöglicht es, das aktuelle Route-Fragment als beschreibbares Signal (`WritableSignal`)
- * zu lesen und zu manipulieren:
- * - **Lesend:** Reagiert reaktiv auf Änderungen des URL-Fragments über `ActivatedRoute.fragment`.
- * - **Schreibend:** Setzen eines neuen Werts (`fragmentSignal.set('anchor-id')`) aktualisiert die URL
- *   asynchron via `Router.navigateByUrl`, wobei `replaceUrl: true` gesetzt wird (um den Browserverlauf nicht
- *   mit Scroll-Zuständen zu überfluten) und bestehende Query-Parameter erhalten bleiben.
+ * Reads the current route fragment as a writable signal (WritableSignal).
+ * - Reading reacts to URL fragment changes through ActivatedRoute.fragment.
+ * - Writing, for example fragmentSignal.set('anchor-id'), asynchronously updates the URL
+ *   through Router.navigateByUrl with replaceUrl: true. This preserves query parameters
+ *   and avoids adding a history entry for each scroll update.
  *
- * @returns Ein `WritableSignal<string | null | undefined>`, das an das URL-Fragment gekoppelt ist.
- *
+ * @returns A WritableSignal<string | null | undefined> linked to the URL fragment.
  * @example
  * ```ts
  * @Component({ ... })
  * export class MyViewComponent {
- *   // Signal initialisieren
+ *   // Initialize the signal
  *   protected readonly routeFragment = linkedRouteFragment();
  *
  *   onAnchorReached(anchorId: string) {
- *     // URL-Fragment lautlos aktualisieren (#anchorId)
+ *     // Update the URL fragment without adding history entries (#anchorId)
  *     this.routeFragment.set(anchorId);
  *   }
  * }

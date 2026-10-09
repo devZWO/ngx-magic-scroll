@@ -6,13 +6,11 @@ import { injectScrollableParentElement } from './inject-scrollable-parent';
 import { ScrollService } from './scroll-service';
 
 /**
- * Direktive für das erneute Scrollen zum URL-Anker bei nachfolgenden Datenänderungen.
+ * Restores the URL anchor after subsequent data changes.
  *
- * Im Gegensatz zu `ScrollToFragmentOnFirstDataDirective` ignoriert diese Direktive das erste Laden
- * (über `effectSkipFirstIf`) und reagiert erst, wenn sich die Daten im laufenden Betrieb ändern
- * (z. B. Nachladen weiterer Seiten, Refetching oder Filterwechsel), um den aktuellen Anker
- * im Sichtbereich zu halten, falls das Ziel durch DOM-Umbau verschoben wurde.
- *
+ * Unlike ScrollToFragmentOnFirstDataDirective, skips the first load through effectSkipFirstIf.
+ * Reacts to later updates, such as pagination, refetching or filter changes, to keep the
+ * current anchor visible when DOM changes have moved the target.
  * @example
  * ```html
  * <div
@@ -20,7 +18,7 @@ import { ScrollService } from './scroll-service';
  *   [skipFirstScrollBehavior]="'smooth'"
  *   [skipFirstTopOffset]="20"
  * >
- *   <!-- Dynamisch aktualisierte Datenliste -->
+ *   <!-- Dynamically updated data list -->
  * </div>
  * ```
  */
@@ -33,22 +31,22 @@ export class ScrollToFragmentOnDataChangeDirective implements OnInit {
     attribute that can be applied simultaneously, that's why we need different specific external names
   */
   /**
-   * Das anbieterneutrale Datenquelle (z. B. `injectInfiniteQuery`), dessen Datenaktualisierungen überwacht werden.
+   * Provider-neutral data source whose updates are observed.
    */
   public readonly queryResult = input.required<ScrollDataSource>({
     alias: 'appScrollingOnDataChange',
   });
 
   /**
-   * Das gewünschte Scroll-Verhalten bei Datenänderungen ('instant', 'smooth', 'auto').
-   * Standardmäßig `'smooth'`.
+   * Scroll behavior for data changes ('instant', 'smooth' or 'auto').
+   * Defaults to 'smooth'.
    */
   public readonly scrollBehavior = input<'instant' | 'smooth' | 'auto'>('smooth', {
     alias: 'skipFirstScrollBehavior',
   });
 
   /**
-   * Zusätzlicher oberer Abstand in Pixeln zum Zielanker.
+   * Additional top offset, in pixels, for the target anchor.
    */
   public readonly topOffset = input(0, { alias: 'skipFirstTopOffset' });
   /* eslint-enable @angular-eslint/no-input-rename */

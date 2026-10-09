@@ -9,8 +9,8 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
 @Component({
   imports: [MagicScrollDirective, ScrollOptionsPanel],
   providers: [provideMagicScroll({ anchorPrefix: 'kapitel-' })],
-  template: `<h1>Dokument · Anker synchronisieren</h1>
-    <p>Scrollen aktualisiert den aktiven Abschnitt und das URL-Fragment.</p>
+  template: `<h1>Document · Synchronize anchors</h1>
+    <p>Scrolling updates the active section and the URL fragment.</p>
     <app-scroll-options
       [(behavior)]="behavior"
       [(offset)]="offset"
@@ -20,22 +20,22 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
       [showVisibility]="true"
       [showSpy]="true"
     />
-    <p role="status" aria-label="Scroll-Ergebnis">{{ result() }}</p>
-    <nav aria-label="Abschnitte">
+    <p role="status" aria-label="Scroll result">{{ result() }}</p>
+    <nav aria-label="Sections">
       @for (id of sections; track id) {
         <button (click)="jump(id)">{{ id }}</button>
       }
     </nav>
     <p>
-      Aktiver Anker: <output>{{ scroll.activeAnchor() }}</output>
+      Active anchor: <output>{{ scroll.activeAnchor() }}</output>
     </p>
     <div class="viewport" #viewport>
       <div magicScroll #scroll="magicScroll" [scrollOptions]="options()">
         @for (id of sections; track id) {
           <section [id]="id">
             <h2>{{ id }}</h2>
-            <h3 [id]="'zwischen-' + id">Zwischenüberschrift</h3>
-            <p>Ein vertikal scrollbares Dokument mit stabilen Abschnittsankern.</p>
+            <h3 [id]="'zwischen-' + id">Intermediate heading</h3>
+            <p>A vertically scrollable document with stable section anchors.</p>
           </section>
         }
       </div>
@@ -48,7 +48,7 @@ export class DocumentExample {
   readonly visibility = signal<VisibilityMode>('none');
   readonly debounceTime = signal(500);
   readonly onlyPrefixed = signal(true);
-  readonly result = signal('Ein Ziel wählen oder im Dokument scrollen.');
+  readonly result = signal('Choose a target or scroll within the document.');
   private readonly scroll = viewChild.required(MagicScrollDirective);
   readonly options = computed(() => ({
     behavior: { interaction: this.behavior() },
@@ -60,7 +60,7 @@ export class DocumentExample {
   jump(id: string) {
     const executed = this.scroll().scrollTo(id);
     this.result.set(
-      executed ? 'Scrollen ausgeführt.' : 'Scrollen übersprungen: Das Ziel ist bereits sichtbar.',
+      executed ? 'Scrolling initiated.' : 'Scrolling skipped: The target is already visible.',
     );
   }
 }
@@ -68,10 +68,10 @@ export class DocumentExample {
 @Component({
   imports: [RouterLink, ScrollOptionsPanel, MagicScrollDirective],
   providers: [provideMagicScroll({ anchorPrefix: 'eintrag-' })],
-  template: `<h1>Navigation · Position restaurieren</h1>
+  template: `<h1>Navigation · Restore position</h1>
     <p>
-      Ein Detail öffnen und mit dem Browser zurückkehren. Die Liste lädt erneut asynchron und
-      restauriert den Anker.
+      Open a detail page and use the browser to go back. The list loads asynchronously again and
+      restores the anchor.
     </p>
     <app-scroll-options
       [behavior]="behavior()"
@@ -79,11 +79,11 @@ export class DocumentExample {
       (behaviorChange)="setOptions($event, offset())"
       (offsetChange)="setOptions(behavior(), $event)"
     />
-    <p>Die gewählten Optionen bleiben bei Detailnavigation und Reload in der URL erhalten.</p>
+    <p>Selected options remain in the URL across detail navigation and reload.</p>
     <details>
-      <summary>Ladeverhalten</summary>
+      <summary>Loading behavior</summary>
       <label
-        >Ladezeit (ms)<input
+        >Loading delay (ms)<input
           type="number"
           min="0"
           max="5000"
@@ -91,33 +91,33 @@ export class DocumentExample {
           (input)="loadDelay.set(+$any($event.target).value)"
       /></label>
       <label
-        >Ladeergebnis<select
+        >Loading result<select
           [value]="loadResult()"
           (change)="loadResult.set($any($event.target).value)"
         >
-          <option value="data">Einträge</option>
-          <option value="empty">Leere Liste</option>
-          <option value="error">Ladefehler</option>
+          <option value="data">Entries</option>
+          <option value="empty">Empty list</option>
+          <option value="error">Loading error</option>
         </select></label
       >
-      <button (click)="resource.reload()">Liste neu laden</button>
+      <button (click)="resource.reload()">Reload list</button>
     </details>
     <div class="viewport">
       <div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
         @if (resource.isLoading()) {
-          <p role="status">Lädt…</p>
+          <p role="status">Loading…</p>
         }
         @if (resource.error()) {
-          <p role="alert">Die Liste konnte nicht geladen werden. Bitte erneut versuchen.</p>
+          <p role="alert">The list could not be loaded. Please try again.</p>
         }
         @if (resource.hasValue() && resource.value().length === 0) {
-          <p role="status">Keine Einträge.</p>
+          <p role="status">No entries.</p>
         }
         @for (id of entries(); track id) {
           <section [id]="'eintrag-' + id">
-            <h2>Eintrag {{ id }}</h2>
+            <h2>Entry {{ id }}</h2>
             <a [routerLink]="['/navigation/detail', id]" queryParamsHandling="preserve"
-              >Details zu {{ id }}</a
+              >Details for {{ id }}</a
             >
           </section>
         }
@@ -155,7 +155,7 @@ export class NavigationExample {
       const result = this.loadResult();
       return timer(this.loadDelay()).pipe(
         map(() => {
-          if (result === 'error') throw new Error('Demo-Ladefehler');
+          if (result === 'error') throw new Error('Demo loading error');
           return result === 'empty' ? [] : [1, 2, 3, 4, 5, 6, 7, 8];
         }),
       );
@@ -170,10 +170,10 @@ export class NavigationExample {
 
 @Component({
   imports: [RouterLink],
-  template: `<h1>Details zu {{ id }}</h1>
-    <p>Die Listenposition befindet sich im Fragment des vorherigen Verlaufseintrags.</p>
+  template: `<h1>Details for {{ id }}</h1>
+    <p>The list position is stored in the fragment of the previous history entry.</p>
     <a [routerLink]="listPath" [fragment]="prefix + id" queryParamsHandling="preserve"
-      >Zur Liste</a
+      >Back to list</a
     >`,
 })
 export class DetailExample {
@@ -189,10 +189,9 @@ export class DetailExample {
   imports: [MatSidenavModule, RouterLink, ScrollOptionsPanel, MagicScrollDirective],
   providers: [provideMagicScroll({ anchorPrefix: 'antrag-card-' })],
   styles: ['mat-drawer-content { overflow-anchor: none; }'],
-  template: `<h1>Antragsübersicht · Material Drawer</h1>
+  template: `<h1>Application overview · Material Drawer</h1>
     <p>
-      Nach dem Muster der AntraegeUebersichtContainer: asynchrone Karten, Nachladen und
-      Detailnavigation.
+      Inspired by AntraegeUebersichtContainer: asynchronous cards, pagination and detail navigation.
     </p>
     <app-scroll-options [(behavior)]="behavior" [(offset)]="offset" />
     <label
@@ -200,35 +199,35 @@ export class DetailExample {
         type="checkbox"
         [checked]="restoreChanges()"
         (change)="restoreChanges.set(!restoreChanges())"
-      />Anker bei Datenänderungen erhalten</label
+      />Preserve anchor on data changes</label
     >
-    <button (click)="prepend.update(addThree)">Drei Anträge oben einfügen</button>
-    <button (click)="drawer.toggle()">Navigation umschalten</button>
-    <button (click)="loadMore()">Weitere Anträge laden</button>
-    <button (click)="resource.reload()">Daten neu laden</button>
+    <button (click)="prepend.update(addThree)">Insert three applications at the top</button>
+    <button (click)="drawer.toggle()">Toggle navigation</button>
+    <button (click)="loadMore()">Load more applications</button>
+    <button (click)="resource.reload()">Reload data</button>
     <mat-drawer-container class="drawer-shell">
       <mat-drawer #drawer mode="side" opened
-        ><nav aria-label="Anträge">
+        ><nav aria-label="Applications">
           @for (id of resource.value(); track id) {
-            <button (click)="jump(id)">Antrag {{ id }}</button>
+            <button (click)="jump(id)">Application {{ id }}</button>
           }
         </nav></mat-drawer
       >
       <mat-drawer-content
         ><div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
           @if (resource.isLoading()) {
-            <p role="status">Anträge laden…</p>
+            <p role="status">Loading applications…</p>
           }
           @for (id of resource.value(); track id) {
             <section [id]="'antrag-card-' + id">
-              <h2>Antrag {{ id }}</h2>
-              <p>Hausanschluss · Bearbeitung offen</p>
+              <h2>Application {{ id }}</h2>
+              <p>Utility connection · Pending processing</p>
               <details>
-                <summary>Antrag aufklappen</summary>
-                <p>Kontakt und Anschlussdaten für Antrag {{ id }}</p>
+                <summary>Expand application</summary>
+                <p>Contact and connection details for application {{ id }}</p>
               </details>
               <a [routerLink]="['/drawer/detail', id]" queryParamsHandling="preserve"
-                >Antrag {{ id }} öffnen</a
+                >Open application {{ id }}</a
               >
             </section>
           }

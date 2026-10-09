@@ -4,16 +4,14 @@ import { injectScrollableParentElement } from './inject-scrollable-parent';
 import { ScrollService } from './scroll-service';
 
 /**
- * Direktive, die bei einer Größenänderung des Browserfensters (`window:resize`)
- * automatisch und verzögerungsfrei (`instant`) zum aktuellen Anker der URL scrollt.
+ * Scrolls instantly to the current URL anchor when the browser window resizes (window:resize).
  *
- * Dadurch bleibt der aktive Ankerabschnitt auch bei dynamischen Viewport-Änderungen
- * (z. B. Ein-/Ausblenden von Toolbars, DevTools, Orientierungswechsel) im sichtbaren Bereich.
+ * Keeps the active section visible after viewport changes, such as showing or hiding
+ *  toolbars or DevTools, or changing device orientation.
  *
  * @remarks
- * Kann als Host-Direktive (`hostDirectives: [PreserveVisibleAnchorOnResize]`) oder als Attribut-Direktive
- * an einer Komponente bzw. einem HTML-Element angebracht werden (nicht an Pseudo-Elementen wie `<ng-container>`).
- *
+ * Use as a host directive (hostDirectives: [PreserveVisibleAnchorOnResize]) or as an
+ * attribute directive on a component or HTML element, rather than a pseudo-element such as ng-container.
  * @example
  * ```ts
  * @Component({
@@ -32,12 +30,12 @@ import { ScrollService } from './scroll-service';
 })
 export class PreserveVisibleAnchorOnResize {
   /**
-   * Zusätzlicher oberer Abstand in Pixeln beim Nachjustieren der Scrollposition.
+   * Additional top offset, in pixels, when correcting the scroll position.
    */
   public readonly topOffset = input(0);
 
   /**
-   * Optionales Präfix für Anker-IDs, um nur auf fachlich relevante Anker zu reagieren.
+   * Optional anchor-ID prefix to restrict restoration to relevant anchors.
    */
   public readonly preserveSelectorPrefix = input<string>('');
 
@@ -46,7 +44,7 @@ export class PreserveVisibleAnchorOnResize {
   private readonly routeFragment = linkedRouteFragment();
 
   /**
-   * Führt das sofortige Re-Scrolling zum aktuellen URL-Fragment aus.
+   * Immediately scrolls to the current URL fragment.
    */
   protected scrollToAnchor(): void {
     const fragment = this.routeFragment();

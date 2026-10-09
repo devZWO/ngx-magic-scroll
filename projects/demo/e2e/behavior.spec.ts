@@ -11,9 +11,9 @@ for (const { behavior, cssSmooth } of [
     page,
   }) => {
     await page.goto('/document');
-    await page.getByText('Optionen', { exact: true }).click();
-    await page.getByLabel('Scroll-Verhalten').selectOption(behavior);
-    await page.getByLabel('Oberer Abstand').selectOption('20');
+    await page.getByText('Options', { exact: true }).click();
+    await page.getByLabel('Scroll behavior').selectOption(behavior);
+    await page.getByLabel('Top offset').selectOption('20');
     await page.locator('.viewport').evaluate((el, smooth) => {
       el.style.scrollBehavior = smooth ? 'smooth' : 'auto';
     }, cssSmooth);
@@ -46,7 +46,7 @@ test('visibility modes distinguish full visibility, each visible edge, hidden an
   page,
 }) => {
   await page.goto('/document');
-  await page.getByText('Optionen', { exact: true }).click();
+  await page.getByText('Options', { exact: true }).click();
   const target = page.locator('#kapitel-3');
   const scenarios = [
     { name: 'fully visible', top: 100, height: 280, skipped: ['top', 'full', 'always'] },
@@ -59,7 +59,7 @@ test('visibility modes distinguish full visibility, each visible edge, hidden an
   for (const scenario of scenarios) {
     for (const mode of ['none', 'top', 'full', 'always']) {
       await test.step(`${scenario.name}, mode ${mode}`, async () => {
-        await page.getByLabel('Scrollen überspringen').selectOption(mode);
+        await page.getByLabel('Skip scrolling').selectOption(mode);
         await target.evaluate(
           (el, height) => (el.style.minHeight = `${height}px`),
           scenario.height,
@@ -68,13 +68,13 @@ test('visibility modes distinguish full visibility, each visible edge, hidden an
         const before = await page.locator('.viewport').evaluate((el) => el.scrollTop);
         await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
         if (scenario.skipped.includes(mode)) {
-          await expect(page.getByRole('status', { name: 'Scroll-Ergebnis' })).toContainText(
-            'übersprungen',
+          await expect(page.getByRole('status', { name: 'Scroll result' })).toContainText(
+            'skipped',
           );
           expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(before);
         } else {
-          await expect(page.getByRole('status', { name: 'Scroll-Ergebnis' })).toHaveText(
-            'Scrollen ausgeführt.',
+          await expect(page.getByRole('status', { name: 'Scroll result' })).toHaveText(
+            'Scrolling initiated.',
           );
           await aligned(page, '#kapitel-3', '.viewport');
           expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).not.toBe(before);
@@ -88,8 +88,8 @@ test('scroll spy debounces a burst, uses the final anchor and reacts to a change
   page,
 }) => {
   await page.goto('/document?keep=yes');
-  await page.getByText('Optionen', { exact: true }).click();
-  await page.getByLabel('Scroll-Spy-Verzögerung').selectOption('1000');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('1000');
   await page.clock.install();
   const history = await page.evaluate(() => window.history.length);
   await placeAnchor(page, '#kapitel-3', '.viewport', 0);
@@ -101,7 +101,7 @@ test('scroll spy debounces a burst, uses the final anchor and reacts to a change
   await page.clock.runFor(450);
   await expect(page).toHaveURL(/keep=yes#kapitel-4$/);
   await expect(page.locator('output')).toHaveText('kapitel-4');
-  await page.getByLabel('Scroll-Spy-Verzögerung').selectOption('0');
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
   await placeAnchor(page, '#kapitel-2', '.viewport', 0);
   await page.clock.runFor(50);
   await expect(page).toHaveURL(/keep=yes#kapitel-2$/);
@@ -112,11 +112,11 @@ test('prefix filtering excludes a closer intermediate anchor and can be disabled
   page,
 }) => {
   await page.goto('/document');
-  await page.getByText('Optionen', { exact: true }).click();
-  await page.getByLabel('Scroll-Spy-Verzögerung').selectOption('0');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
   await placeAnchor(page, '#zwischen-kapitel-3', '.viewport', 0);
   await expect(page).toHaveURL(/#kapitel-4$/);
-  await page.getByLabel('Nur Kapitel-Anker berücksichtigen').uncheck();
+  await page.getByLabel('Only consider chapter anchors').uncheck();
   await expect(page).toHaveURL(/#zwischen-kapitel-3$/);
 });
 
@@ -124,8 +124,8 @@ test('wheel and keyboard scroll the document container and synchronize its ancho
   page,
 }) => {
   await page.goto('/document');
-  await page.getByText('Optionen', { exact: true }).click();
-  await page.getByLabel('Scroll-Spy-Verzögerung').selectOption('0');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
   await page.locator('.viewport').hover();
   const outerPosition = await page.evaluate(() => window.scrollY);
   await page.mouse.wheel(0, 280);
@@ -168,16 +168,16 @@ test('navigation options changed through the UI preserve query parameters and hi
   await page.goto('/navigation?keep=yes#eintrag-4');
   await aligned(page, '#eintrag-4', '.viewport');
   const history = await page.evaluate(() => window.history.length);
-  await page.getByText('Optionen', { exact: true }).click();
-  await page.getByLabel('Scroll-Verhalten').selectOption('smooth');
-  await page.getByLabel('Oberer Abstand').selectOption('64');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll behavior').selectOption('smooth');
+  await page.getByLabel('Top offset').selectOption('64');
   await expect.poll(() => new URL(page.url()).searchParams.get('offset')).toBe('64');
   expect(new URL(page.url()).searchParams.get('scroll')).toBe('smooth');
   expect(new URL(page.url()).searchParams.get('keep')).toBe('yes');
   expect(new URL(page.url()).hash).toBe('#eintrag-4');
   expect(await page.evaluate(() => window.history.length)).toBe(history);
-  await page.getByRole('link', { name: 'Details zu 4', exact: true }).click();
-  await page.getByRole('link', { name: 'Zur Liste', exact: true }).click();
+  await page.getByRole('link', { name: 'Details for 4', exact: true }).click();
+  await page.getByRole('link', { name: 'Back to list', exact: true }).click();
   await atOffset(page, '#eintrag-4', '.viewport', 64);
   await page.reload();
   await atOffset(page, '#eintrag-4', '.viewport', 64);
@@ -187,16 +187,16 @@ test('initial restoration waits for loading and does not repeat after a later re
   page,
 }) => {
   await page.goto('/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Lädt…');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
   await expect(page.locator('#eintrag-4')).not.toBeAttached();
   expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(0);
   await aligned(page, '#eintrag-4', '.viewport');
   await placeAnchor(page, '#eintrag-6', '.viewport', 0);
   await expect(page).toHaveURL(/#eintrag-6$/);
-  await page.getByText('Ladeverhalten', { exact: true }).click();
-  await page.getByLabel('Ladezeit (ms)').fill('300');
-  await page.getByRole('button', { name: 'Liste neu laden' }).click();
-  await expect(page.getByRole('status')).toHaveText('Lädt…');
+  await page.getByText('Loading behavior', { exact: true }).click();
+  await page.getByLabel('Loading delay (ms)').fill('300');
+  await page.getByRole('button', { name: 'Reload list' }).click();
+  await expect(page.getByRole('status')).toHaveText('Loading…');
   await expect(page.getByRole('status')).toBeHidden();
   await aligned(page, '#eintrag-6', '.viewport');
   await expect(page).toHaveURL(/#eintrag-6$/);
@@ -204,12 +204,12 @@ test('initial restoration waits for loading and does not repeat after a later re
 
 test('leaving a pending load prevents stale scrolling and URL updates', async ({ page }) => {
   await page.goto('/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Lädt…');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
   // Retain the old DOM node to dispatch events after its directive has been destroyed.
   const oldViewport = await page.locator('.viewport').elementHandle();
   await page
-    .getByRole('navigation', { name: 'Beispiele' })
-    .getByRole('link', { name: 'Dokument', exact: true })
+    .getByRole('navigation', { name: 'Examples' })
+    .getByRole('link', { name: 'Document', exact: true })
     .click();
   await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
   await aligned(page, '#kapitel-3', '.viewport');
@@ -241,7 +241,7 @@ test('an empty loaded list leaves the scroll position and requested fragment unt
   page,
 }) => {
   await page.goto('/navigation?result=empty#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Keine Einträge.');
+  await expect(page.getByRole('status')).toHaveText('No entries.');
   await expect(page.locator('.viewport section')).toHaveCount(0);
   await page.clock.install();
   await page.clock.runFor(1000);
@@ -253,11 +253,11 @@ test('a failed initial load can be retried and then restores the requested ancho
   page,
 }) => {
   await page.goto('/navigation?result=error#eintrag-4');
-  await expect(page.getByRole('alert')).toContainText('Bitte erneut versuchen');
+  await expect(page.getByRole('alert')).toContainText('Please try again');
   expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(0);
-  await page.getByText('Ladeverhalten', { exact: true }).click();
-  await page.getByLabel('Ladeergebnis').selectOption('data');
-  await page.getByRole('button', { name: 'Liste neu laden' }).click();
+  await page.getByText('Loading behavior', { exact: true }).click();
+  await page.getByLabel('Loading result').selectOption('data');
+  await page.getByRole('button', { name: 'Reload list' }).click();
   await aligned(page, '#eintrag-4', '.viewport');
   await expect(page.getByRole('alert')).toBeHidden();
   await expect(page).toHaveURL(/#eintrag-4$/);
@@ -311,7 +311,7 @@ test('wheel scrolling the master-detail page updates the active project without 
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(documentPosition + 100);
   await expect(page).toHaveURL(/#projekt-9$/);
-  await expect(page.getByRole('button', { name: 'Projekt 9', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Project 9', exact: true })).toHaveAttribute(
     'aria-current',
     'true',
   );

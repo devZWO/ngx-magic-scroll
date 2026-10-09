@@ -4,7 +4,7 @@ import { injectScrollableParentElement } from './inject-scrollable-parent';
 import { injectedHeaderHeight } from './inject-header-size';
 
 /**
- * Konfigurationsoptionen für die Ermittlung des nächstgelegenen Ankers.
+ * Options for finding the nearest anchor.
  */
 export interface NearestAnchorOptions {
   /** Explicit scroll container, including a host that is itself scrollable. */
@@ -12,52 +12,50 @@ export interface NearestAnchorOptions {
   /** Preselected anchor elements (e.g. scoped, explicit anchors in the facade). */
   anchors?: readonly HTMLElement[];
   /**
-   * Optionales Host-Element / übergeordneter Container, in dem nach Anker-Elementen gesucht wird.
-   * Standardmäßig wird das gesamte `Document` durchsucht.
+   * Optional host element within which to find anchor elements.
+   * Defaults to searching the entire Document.
    */
   hostElement?: HTMLElement;
   /**
-   * CSS-Selektor zum Auffinden relevanter Anchor-Elemente (z. B. `'[id^="antrag-card-"]'`).
-   * Standardmäßig `'[id]'`.
+   * CSS selector for eligible anchors, for example '[id^="item-card-"]'.
+   * Defaults to '[id]'.
    */
   selector?: string;
   /**
-   * Statischer oberer Offset in Pixeln (z. B. fester Abstand oder Padding).
+   * Static top offset, in pixels, such as a fixed gap or padding.
    */
   headerOffset?: number;
   /**
-   * CSS-Selektor für ein fixes/sticky Header-Element (z. B. `'.header'`).
-   * Dessen Höhe wird dynamisch ermittelt und zum Offset addiert, damit überdeckte Elemente
-   * nicht fälschlicherweise als oberster sichtbarer Anker gewertet werden.
+   * CSS selector for a fixed or sticky header, for example '.header'.
+   * Its measured height is added to the offset so covered elements are not selected
+   * as the topmost visible anchor.
    */
   headerSelector?: string;
 }
 
 /**
- * Service zur Berechnung des Anker-Elements, das der oberen Kante des sichtbaren Scrollbereichs
- * am nächsten liegt.
+ * Finds the anchor nearest the top edge of the visible scroll area.
  *
- * Eignet sich ideal für Scroll-Spy-Mechanismen, um beim Durchscrollen einer Seite oder Liste
- * das aktuell fokussierte Element zu erkennen und z. B. das URL-Fragment synchron zu halten.
+ * Supports scroll-spy behavior to identify the current section while scrolling and
+ * synchronize the URL fragment.
  *
  * @remarks
- * Dieser Service besitzt kein `{ providedIn: 'root' }` und muss daher in der Anwendung
- * (z. B. `app.config.ts` unter `providers`) oder auf Komponentenebene registriert werden.
+ * This service does not use providedIn: 'root'. Register it in application or component
+ * providers when using it internally. The facade provides its own instance.
  */
 @Injectable()
 export class NearestAnchorProvider {
   private readonly document = inject(DOCUMENT);
 
   /**
-   * Berechnet die ID des am nächsten zur Oberkante liegenden Anker-Elements.
+   * Calculates the ID of the anchor nearest the visible top edge.
    *
-   * 1. Sucht alle passenden Elemente anhand des `selector` im `hostElement` (oder `document`).
-   * 2. Filtert Elemente heraus, deren Oberkante oberhalb des berechneten Offsets liegt.
-   * 3. Ermittelt unter den sichtbaren Elementen dasjenige mit der geringsten Distanz zur Oberkante.
+   * 1. Finds matching elements using selector within hostElement, or within document.
+   * 2. Excludes elements whose top edge lies above the configured offset.
+   * 3. Selects the remaining element nearest the top edge.
    *
-   * @param options - Konfigurationsoptionen (Host-Element, Selektor, Header-Offset etc.).
-   * @returns Die ID des nächstgelegenen HTML-Elements oder `undefined`, falls kein passendes Element gefunden wurde.
-   *
+   * @param options - Host element, selector, scroll container and header-offset settings.
+   * @returns The nearest anchor's element ID, or undefined if no eligible element exists.
    * @example
    * ```ts
    * const nearestId = nearestAnchorProvider.getNearestAnchor({

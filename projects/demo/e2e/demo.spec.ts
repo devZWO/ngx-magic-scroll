@@ -21,13 +21,13 @@ test('navigation restores after async loading, browser back, reload and resize',
 }) => {
   await page.goto('/navigation?keep=yes#eintrag-4');
   await aligned(page, '#eintrag-4', '.viewport');
-  await page.getByRole('link', { name: 'Details zu 4', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Details zu 4' })).toBeVisible();
+  await page.getByRole('link', { name: 'Details for 4', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Details for 4' })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/keep=yes#eintrag-4$/);
   await aligned(page, '#eintrag-4', '.viewport');
   await page.goForward();
-  await expect(page.getByRole('heading', { name: 'Details zu 4' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Details for 4' })).toBeVisible();
   await page.goBack();
   await aligned(page, '#eintrag-4', '.viewport');
   await page.reload();
@@ -52,29 +52,29 @@ test('Material drawer supports restoration, scroll synchronization, reload and p
 }) => {
   await page.goto('/drawer#antrag-card-4');
   await aligned(page, '#antrag-card-4', 'mat-drawer-content');
-  await page.getByRole('button', { name: 'Antrag 6', exact: true }).click();
+  await page.getByRole('button', { name: 'Application 6', exact: true }).click();
   await expect(page).toHaveURL(/#antrag-card-6$/);
-  await page.getByRole('link', { name: 'Antrag 6 öffnen', exact: true }).click();
+  await page.getByRole('link', { name: 'Open application 6', exact: true }).click();
   await page.goBack();
   await aligned(page, '#antrag-card-6', 'mat-drawer-content');
-  await page.getByRole('button', { name: 'Weitere Anträge laden' }).click();
+  await page.getByRole('button', { name: 'Load more applications' }).click();
   await expect(page.locator('#antrag-card-12')).toBeAttached();
   await aligned(page, '#antrag-card-6', 'mat-drawer-content');
-  await page.getByRole('button', { name: 'Daten neu laden' }).click();
+  await page.getByRole('button', { name: 'Reload data' }).click();
   await expect(page.getByRole('status')).toBeVisible();
   await expect(page.getByRole('status')).toBeHidden();
   await aligned(page, '#antrag-card-6', 'mat-drawer-content');
-  await page.getByRole('button', { name: 'Antrag 10', exact: true }).click();
+  await page.getByRole('button', { name: 'Application 10', exact: true }).click();
   await expect(page).toHaveURL(/count=12#antrag-card-10$/);
-  await page.getByRole('link', { name: 'Antrag 10 öffnen', exact: true }).click();
+  await page.getByRole('link', { name: 'Open application 10', exact: true }).click();
   await page.goBack();
   await aligned(page, '#antrag-card-10', 'mat-drawer-content');
   await page.reload();
   await aligned(page, '#antrag-card-10', 'mat-drawer-content');
-  await page.getByRole('button', { name: 'Navigation umschalten' }).click();
+  await page.getByRole('button', { name: 'Toggle navigation' }).click();
   await expect(page.locator('mat-drawer')).not.toBeVisible();
   await aligned(page, '#antrag-card-10', 'mat-drawer-content');
-  await page.getByRole('button', { name: 'Navigation umschalten' }).click();
+  await page.getByRole('button', { name: 'Toggle navigation' }).click();
   await expect(page.locator('mat-drawer')).toBeVisible();
   await aligned(page, '#antrag-card-10', 'mat-drawer-content');
   await page.setViewportSize({ width: 850, height: 650 });
@@ -109,16 +109,16 @@ test('master-detail scrolls the document independently of master and accounts fo
   await master.evaluate((el) => (el.scrollTop = 350));
   expect(await master.evaluate((el) => el.scrollTop)).toBeGreaterThan(300);
   expect(await page.evaluate(() => window.scrollY)).toBe(position);
-  await page.getByRole('button', { name: 'Projekt 12', exact: true }).click();
+  await page.getByRole('button', { name: 'Project 12', exact: true }).click();
   await belowHeader(12);
   await expect(page).toHaveURL(/keep=yes#projekt-12$/);
   const height = Number(await page.getByTestId('header-height').textContent());
-  await page.getByRole('button', { name: 'Headerhöhe ändern' }).click();
+  await page.getByRole('button', { name: 'Change header height' }).click();
   await expect
     .poll(async () => Number(await page.getByTestId('header-height').textContent()))
     .toBeGreaterThan(height);
   await belowHeader(12);
-  await page.getByRole('button', { name: 'Headerhöhe ändern' }).click();
+  await page.getByRole('button', { name: 'Change header height' }).click();
   await expect
     .poll(async () => Number(await page.getByTestId('header-height').textContent()))
     .toBeLessThan(height + 1);
@@ -138,7 +138,7 @@ test('master-detail scrolls the document independently of master and accounts fo
     }),
   );
   await expect(page).toHaveURL(/#projekt-15$/);
-  await expect(page.getByRole('button', { name: 'Projekt 15', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Project 15', exact: true })).toHaveAttribute(
     'aria-current',
     'true',
   );
@@ -150,29 +150,27 @@ test('document options apply smooth scrolling, offsets, visibility rules and anc
   page,
 }) => {
   await page.goto('/document');
-  await page.getByText('Optionen', { exact: true }).click();
-  await page.getByLabel('Scroll-Verhalten').selectOption('smooth');
-  await page.getByLabel('Oberer Abstand').selectOption('20');
-  await page.getByLabel('Scroll-Spy-Verzögerung').selectOption('150');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll behavior').selectOption('smooth');
+  await page.getByLabel('Top offset').selectOption('20');
+  await page.getByLabel('Scroll-spy delay').selectOption('150');
   await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
   await atOffset(page, '#kapitel-3', '.viewport', 20);
   await expect(page).toHaveURL(/#kapitel-3$/);
   const top = await page.locator('.viewport').evaluate((el) => el.scrollTop);
   for (const mode of ['top', 'full', 'always']) {
-    await page.getByLabel('Scrollen überspringen').selectOption(mode);
+    await page.getByLabel('Skip scrolling').selectOption(mode);
     await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
-    await expect(page.getByRole('status', { name: 'Scroll-Ergebnis' })).toContainText(
-      'übersprungen',
-    );
+    await expect(page.getByRole('status', { name: 'Scroll result' })).toContainText('skipped');
     expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(top);
   }
-  await page.getByLabel('Scrollen überspringen').selectOption('none');
+  await page.getByLabel('Skip scrolling').selectOption('none');
   await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
-  await expect(page.getByRole('status', { name: 'Scroll-Ergebnis' })).toHaveText(
-    'Scrollen ausgeführt.',
+  await expect(page.getByRole('status', { name: 'Scroll result' })).toHaveText(
+    'Scrolling initiated.',
   );
-  await page.getByLabel('Nur Kapitel-Anker berücksichtigen').uncheck();
-  await page.getByLabel('Scroll-Spy-Verzögerung').selectOption('0');
+  await page.getByLabel('Only consider chapter anchors').uncheck();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
   await page.locator('#zwischen-kapitel-4').evaluate((el) => {
     const viewport = document.querySelector<HTMLElement>('.viewport')!;
     viewport.scrollBy({
@@ -187,10 +185,10 @@ test('navigation options survive back navigation and restore asynchronously with
 }) => {
   await page.goto('/navigation?scroll=smooth&offset=64#eintrag-4');
   await atOffset(page, '#eintrag-4', '.viewport', 64);
-  await page.getByText('Optionen', { exact: true }).click();
-  await expect(page.getByLabel('Scroll-Verhalten')).toHaveValue('smooth');
-  await expect(page.getByLabel('Oberer Abstand')).toHaveValue('64');
-  await page.getByRole('link', { name: 'Details zu 4', exact: true }).click();
+  await page.getByText('Options', { exact: true }).click();
+  await expect(page.getByLabel('Scroll behavior')).toHaveValue('smooth');
+  await expect(page.getByLabel('Top offset')).toHaveValue('64');
+  await page.getByRole('link', { name: 'Details for 4', exact: true }).click();
   await page.goBack();
   await atOffset(page, '#eintrag-4', '.viewport', 64);
   await page.reload();
@@ -201,18 +199,18 @@ test('drawer options preserve the visible anchor when data is inserted above it'
 }) => {
   await page.goto('/drawer#antrag-card-4');
   await aligned(page, '#antrag-card-4', 'mat-drawer-content');
-  await page.getByText('Optionen', { exact: true }).click();
-  await page.getByLabel('Scroll-Verhalten').selectOption('smooth');
-  await page.getByLabel('Oberer Abstand').selectOption('20');
-  await page.getByRole('button', { name: 'Antrag 6', exact: true }).click();
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll behavior').selectOption('smooth');
+  await page.getByLabel('Top offset').selectOption('20');
+  await page.getByRole('button', { name: 'Application 6', exact: true }).click();
   await atOffset(page, '#antrag-card-6', 'mat-drawer-content', 20);
   await expect(page).toHaveURL(/#antrag-card-6$/);
-  await page.getByRole('button', { name: 'Drei Anträge oben einfügen' }).click();
+  await page.getByRole('button', { name: 'Insert three applications at the top' }).click();
   await expect(page.locator('#antrag-card--3')).toBeAttached();
   await atOffset(page, '#antrag-card-6', 'mat-drawer-content', 20);
-  await page.getByLabel('Anker bei Datenänderungen erhalten').uncheck();
+  await page.getByLabel('Preserve anchor on data changes').uncheck();
   await page.locator('mat-drawer-content').evaluate((el) => (el.style.overflowAnchor = 'none'));
-  await page.getByRole('button', { name: 'Drei Anträge oben einfügen' }).click();
+  await page.getByRole('button', { name: 'Insert three applications at the top' }).click();
   await expect(page.locator('#antrag-card--6')).toBeAttached();
   await expect
     .poll(() =>

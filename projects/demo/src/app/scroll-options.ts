@@ -5,19 +5,19 @@ export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>
 @Component({
   selector: 'app-scroll-options',
   template: `<details class="demo-options">
-    <summary>Optionen</summary>
+    <summary>Options</summary>
     <fieldset>
-      <legend>Scroll-Einstellungen</legend>
+      <legend>Scroll settings</legend>
       <label
-        >Scroll-Verhalten
+        >Scroll behavior
         <select #behaviorInput [value]="behavior()" (change)="setBehavior(behaviorInput.value)">
-          <option value="instant">Sofort</option>
+          <option value="instant">Instant</option>
           <option value="smooth">Smooth Scrolling</option>
-          <option value="auto">Browser-Vorgabe</option>
+          <option value="auto">Browser default</option>
         </select></label
       >
       <label
-        >Oberer Abstand
+        >Top offset
         <select #offsetInput [value]="offset()" (change)="offset.set(+offsetInput.value)">
           <option value="0">0 px</option>
           <option value="20">20 px</option>
@@ -26,22 +26,22 @@ export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>
       >
       @if (showVisibility()) {
         <label
-          >Scrollen überspringen
+          >Skip scrolling
           <select
             #visibilityInput
             [value]="visibility()"
             (change)="setVisibility(visibilityInput.value)"
           >
-            <option value="none">Nie</option>
-            <option value="top">Wenn die Oberkante sichtbar ist</option>
-            <option value="full">Wenn das gesamte Ziel sichtbar ist</option>
-            <option value="always">Wenn eine Zielkante sichtbar ist</option>
+            <option value="none">Never</option>
+            <option value="top">When the top edge is visible</option>
+            <option value="full">When the whole target is visible</option>
+            <option value="always">When either target edge is visible</option>
           </select></label
         >
       }
       @if (showSpy()) {
         <label
-          >Scroll-Spy-Verzögerung
+          >Scroll-spy delay
           <select
             #debounceInput
             [value]="debounceTime()"
@@ -58,7 +58,7 @@ export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>
             type="checkbox"
             [checked]="onlyPrefixed()"
             (change)="onlyPrefixed.set(!onlyPrefixed())"
-          />Nur Kapitel-Anker berücksichtigen</label
+          />Only consider chapter anchors</label
         >
       }
     </fieldset>

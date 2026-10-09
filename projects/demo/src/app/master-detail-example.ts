@@ -15,52 +15,52 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
   ],
   template: ` <header class="portfolio-header" [class.expanded]="expanded()">
       <div>
-        <strong>Portfolio · Master und Details</strong
-        ><button (click)="expanded.set(!expanded())">Headerhöhe ändern</button>
+        <strong>Portfolio · Master and details</strong
+        ><button (click)="expanded.set(!expanded())">Change header height</button>
       </div>
       <p>
-        Gemessene Headerhöhe:
-        <output data-testid="header-height">{{ scroll.headerHeight() }}</output> px · Aktiver Anker:
+        Measured header height:
+        <output data-testid="header-height">{{ scroll.headerHeight() }}</output> px · Active anchor:
         {{ scroll.activeAnchor() }}
       </p>
       @if (expanded()) {
-        <p>Zusätzliche Toolbar · Die sichtbare Oberkante passt sich automatisch an.</p>
+        <p>Additional toolbar · The visible top edge adjusts automatically.</p>
       }
     </header>
-    <h1>Master–Detail · Die Seite scrollt</h1>
+    <h1>Master–Detail · Page scrolling</h1>
     <p>
-      Links scrollt das Inhaltsverzeichnis unabhängig. Rechts wachsen die Details in voller Länge
-      und scrollen das Dokument. Inspiriert vom Portfolio-Editor in zwoPRO.
+      The index on the left scrolls independently. Details on the right expand to their full height
+      and scroll the document. Inspired by the portfolio editor in zwoPRO.
     </p>
     <div class="portfolio-layout" [style.--header-offset]="scroll.offset() + 'px'">
-      <aside class="portfolio-master" aria-label="Portfolio-Projekte">
-        <h2>Projekte</h2>
-        <nav aria-label="Projektübersicht">
+      <aside class="portfolio-master" aria-label="Portfolio projects">
+        <h2>Projects</h2>
+        <nav aria-label="Project overview">
           @for (id of projects; track id) {
             <button
               [attr.aria-current]="scroll.activeAnchor() === 'projekt-' + id ? 'true' : null"
               (click)="jump(id)"
             >
-              Projekt {{ id }}
+              Project {{ id }}
             </button>
           }
         </nav>
       </aside>
       <div class="portfolio-details" magicScroll #scroll="magicScroll" [scrollSource]="resource">
         @if (resource.isLoading()) {
-          <p role="status">Projekte laden…</p>
+          <p role="status">Loading projects…</p>
         }
         @for (id of resource.value(); track id) {
           <section [id]="'projekt-' + id">
-            <h2>Projekt {{ id }}</h2>
-            <p>Portfolio-Details · Planung und Umsetzung</p>
-            <h3>Beschreibung</h3>
+            <h2>Project {{ id }}</h2>
+            <p>Portfolio details · Planning and implementation</p>
+            <h3>Description</h3>
             <p>
-              Dieser Abschnitt hat keine begrenzte Scrollhöhe. Sein Inhalt vergrößert die gesamte
-              Seite.
+              This section has no constrained scroll height. Its content increases the height of the
+              entire page.
             </p>
-            <h3>Meilensteine</h3>
-            <p>Konzeption, Umsetzung und Abnahme mit einer stabilen Projekt-ID als Anker.</p>
+            <h3>Milestones</h3>
+            <p>Design, implementation and acceptance with a stable project ID as the anchor.</p>
           </section>
         }
       </div>

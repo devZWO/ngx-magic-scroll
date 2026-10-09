@@ -1,23 +1,21 @@
 import { ElementRef, inject } from '@angular/core';
 
 /**
- * Ermittelt das am nächsten liegende scrollbare Eltern-Element (Ancestor) im DOM.
+ * Finds the closest scrollable ancestor in the DOM.
  *
- * Sucht rekursiv entlang des DOM-Baums nach einem Element mit `overflow-y: auto` oder `overflow-y: scroll`.
- * Kann entweder innerhalb eines Angular-Injektionskontexts (nutzt dann `ElementRef.nativeElement` als Startpunkt)
- * oder durch direkte Übergabe eines `hostElement` aufgerufen werden.
+ * Walks up the DOM tree looking for overflow-y: auto or overflow-y: scroll.
+ * Call within an Angular injection context to start at ElementRef.nativeElement,
+ * or pass a hostElement explicitly.
  *
- * @param hostElement - Optionales HTML-Element als Ausgangspunkt der Suche.
- *                      Wird ein Element übergeben, hat dieses Vorrang vor dem Injektionskontext.
- *                      Wird keines übergeben, wird `ElementRef<HTMLElement>` über `inject()` aufgelöst.
- * @returns Das nächste übergeordnete scrollbare `HTMLElement` oder `undefined`, falls keines existiert.
- *
+ * @param hostElement - Optional starting element. An explicit element takes precedence;
+ * otherwise the starting element is obtained by injecting ElementRef<HTMLElement>.
+ * @returns The closest scrollable HTMLElement, or undefined if none exists.
  * @example
  * ```ts
- * // Innerhalb eines Injection Contexts (z. B. Directive / Component Constructor):
+ * // Within an injection context (for example a directive or component constructor):
  * const scrollParent = injectScrollableParentElement();
  *
- * // Außerhalb eines Injection Contexts:
+ * // Outside an injection context:
  * const scrollParent = injectScrollableParentElement(myHtmlElement);
  * ```
  */

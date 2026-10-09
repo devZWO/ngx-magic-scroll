@@ -1,12 +1,11 @@
 /**
- * Ermittelt die Höhe eines Header-Elements anhand eines CSS-Selektors im angegebenen Dokument.
- * Dient der dynamischen Offset-Berechnung für Scroll- und Anchor-Kalkulationen, damit gescrollte
- * Inhalte nicht durch einen fixierten/sticky Header verdeckt werden.
+ * Measures the height of a header selected within the supplied document.
+ * Used to calculate scroll and anchor offsets so a fixed or sticky header does not
+ * cover the scrolled content.
  *
- * @param headerSelector - Der CSS-Selektor des Header-Elements (z. B. `'.header'` oder `'app-header'`).
- * @param document - Die Document-Instanz (z. B. via `DOCUMENT` Token injiziert), in der nach dem Selektor gesucht wird.
- * @returns Die gerundete/absolute Höhe des Headers in Pixeln oder `0`, falls das Element nicht gefunden wurde.
- *
+ * @param headerSelector - Header CSS selector, such as '.header' or 'app-header'.
+ * @param document - Document instance in which to search, for example injected through DOCUMENT.
+ * @returns The absolute header height in pixels, or 0 if the element is not found.
  * @example
  * ```ts
  * const document = inject(DOCUMENT);

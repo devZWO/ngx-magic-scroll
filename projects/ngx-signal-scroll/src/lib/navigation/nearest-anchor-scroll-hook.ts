@@ -15,13 +15,11 @@ import { debounceSignal } from '@ddtmm/angular-signal-generators';
 import { injectScrollableParentElement } from './inject-scrollable-parent';
 
 /**
- * Direktive zur automatischen Ermittlung des nächstgelegenen Ankers beim Scrollen (Scroll-Spy).
+ * Automatically identifies the nearest anchor while scrolling (scroll spy).
  *
- * Findet automatisch das übergeordnete scrollbare Element (`injectScrollableParentElement`),
- * registriert einen debouncten Event-Listener auf dessen `scroll`-Event und ermittelt über
- * den `NearestAnchorProvider` die ID des Elements, das der oberen Sichtkante am nächsten liegt.
- * Die ermittelte Anker-ID wird über das Output-Event emittiert (z. B. um `linkedRouteFragment` zu aktualisieren).
- *
+ * Finds the scrollable ancestor with injectScrollableParentElement, attaches a debounced
+ * scroll listener, and uses NearestAnchorProvider to find the anchor nearest the visible
+ * top edge. Emits its ID through the output event, for example to update linkedRouteFragment.
  * @example
  * ```html
  * <div
@@ -41,22 +39,21 @@ import { injectScrollableParentElement } from './inject-scrollable-parent';
 })
 export class NearestAnchorScrollHook implements AfterViewInit, OnDestroy {
   /**
-   * Präfix für Anker-IDs, die berücksichtigt werden sollen (z. B. `'antrag-card-'`).
-   * Verhindert, dass beliebige andere IDs auf der Seite fälschlicherweise als Anker gewählt werden.
-   * Wenn leer, werden alle Elemente mit einer `id` (`[id]`) berücksichtigt.
+   * Prefix of eligible anchor IDs, for example 'item-card-'.
+   * Prevents unrelated IDs on the page from being selected as anchors.
+   * An empty prefix includes all elements with an id ([id]).
    */
   public selectorPrefix = input<string>('');
 
   /**
-   * Verzögerung in Millisekunden nach dem letzten Scroll-Event, bevor der nächste Anker berechnet wird.
-   * Standardmäßig 500ms, um während schnellem Scrollen Rechenzeit zu sparen und Re-Scroll-Effekte
-   * nicht zu stören.
+   * Delay in milliseconds after the last scroll event before calculating the nearest anchor.
+   * Defaults to 500 ms to reduce work during rapid scrolling and avoid disrupting restoration.
    */
   public debounceTime = input<number>(500);
 
   /**
-   * Emittiert die ID des am nächsten liegenden sichtbaren Ankers bei Scroll-Bewegungen.
-   * Alias entspricht dem Selektor `appNearestAnchorScrollHook`.
+   * Emits the ID of the nearest visible anchor during scrolling.
+   * The output alias matches the appNearestAnchorScrollHook selector.
    */
   public readonly nearestAnchor = output<string>({ alias: 'appNearestAnchorScrollHook' });
 
