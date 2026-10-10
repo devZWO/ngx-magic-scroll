@@ -25,6 +25,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Overview', slug: 'index' },
         { label: 'Getting started', slug: 'getting-started' },
+        { label: 'Live demo', link: '/demo/' },
         {
           label: 'Concepts',
           items: [{ autogenerate: { directory: 'concepts' } }],

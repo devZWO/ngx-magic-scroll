@@ -21,7 +21,12 @@ header {
   background: #203047;
   color: white;
   display: flex;
+  flex-wrap: wrap;
   gap: 40px;
+}
+header .docs-link {
+  margin-inline-start: auto;
+  white-space: nowrap;
 }
 nav {
   display: flex;
