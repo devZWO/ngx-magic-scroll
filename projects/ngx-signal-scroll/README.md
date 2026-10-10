@@ -1,8 +1,14 @@
 # @devzwo/ngx-magic-scroll
 
+[![Angular](https://img.shields.io/badge/Angular-22+-DD0031?style=flat-square&logo=angular)](https://angular.dev)
+[![CI](https://img.shields.io/github/actions/workflow/status/devZWO/ngx-magic-scroll/ci.yml?style=flat-square)](https://github.com/devZWO/ngx-signal-schema/actions/workflows/ci.yml)
+[![codecov](https://img.shields.io/codecov/c/github/devzwo/ngx-magic-scroll?style=flat-square)](https://codecov.io/github/devZWO/ngx-magic-scroll)
+[![NPM Version](https://img.shields.io/npm/v/@devzwo/ngx-magic-scroll?style=flat-square)](https://npmjs.org/package/@devzwo/ngx-magic-scroll)
+[![License](https://img.shields.io/npm/l/%40devzwo%2Fngx-magic-scroll?style=flat-square)](https://github.com/devZWO/ngx-magic-scroll/blob/main/LICENSE)
+
 Anchor scrolling, URL synchronization and position restoration for Angular.
 
-**Pre-release:** the API is still under review. Requires Angular 22.2 and RxJS 7.8. Internal integrations use Angular's experimental `debounced` API; see `package.json` for precise ranges.
+**Pre-release:** the API is still under review. Requires Angular 22.2 and RxJS 7.8. See `package.json` for precise ranges.
 
 ## Minimal usage
 

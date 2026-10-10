@@ -21,7 +21,7 @@
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build",
     "docs:preview": "pnpm --filter docs preview",
-    "package:check": "pnpm run lib:build && node scripts/check-package.mjs && npm pack ./dist/ngx-signal-scroll --dry-run",
+    "package:check": "pnpm run lib:build && node pnpm pack ./dist/ngx-signal-scroll --dry-run",
     "release:check": "pnpm run lint && pnpm run test:ci && pnpm run build && pnpm run recipes:check && pnpm run e2e && pnpm run package:check",
     "recipes:check": "pnpm run lib:build && node scripts/check-recipes.mjs"
   },

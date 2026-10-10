@@ -1,5 +1,11 @@
 # ngx-magic-scroll
 
+[![Angular](https://img.shields.io/badge/Angular-22+-DD0031?style=flat-square&logo=angular)](https://angular.dev)
+[![CI](https://img.shields.io/github/actions/workflow/status/devZWO/ngx-magic-scroll/ci.yml?style=flat-square)](https://github.com/devZWO/ngx-magic-scroll/actions/workflows/main.yml)
+[![codecov](https://img.shields.io/codecov/c/github/devzwo/ngx-magic-scroll?style=flat-square)](https://codecov.io/github/devZWO/ngx-magic-scroll)
+[![NPM Version](https://img.shields.io/npm/v/@devzwo/ngx-magic-scroll?style=flat-square)](https://npmjs.org/package/@devzwo/ngx-magic-scroll)
+[![License](https://img.shields.io/npm/l/%40devzwo%2Fngx-magic-scroll?style=flat-square)](https://github.com/devZWO/ngx-magic-scroll/blob/main/LICENSE)
+
 Anchor scrolling, URL synchronization and position restoration for Angular. **Pre-release:** the implementation is being extracted and its public API is not yet stable. No npm release has been made from this repository.
 
 ## Simplified API
@@ -62,3 +68,9 @@ Only `dist/ngx-signal-scroll` is published to npm; the workspace root is private
 ## License
 
 MIT, copyright 2026 devZWO GmbH. See [LICENSE](LICENSE).
+
+## Maintainer
+
+This project is developed and maintained by the **devZWO GmbH**.
+
+https://devzwo.com
