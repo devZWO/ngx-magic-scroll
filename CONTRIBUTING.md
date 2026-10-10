@@ -2,7 +2,7 @@
 
 Use Node.js 24 and pnpm 12.4.2. Run `pnpm install --frozen-lockfile`, then `pnpm e2e:install` for browser tests. System dependencies may require `pnpm e2e:install:deps`.
 
-Keep public library code in `projects/ngx-signal-scroll/src/lib` and explicitly export the intended API through `src/public-api.ts`. Document exported symbols with TSDoc so the API reference remains current. Keep application-specific behavior in the demo.
+Keep public library code in `projects/ngx-magic-scroll/src/lib` and explicitly export the intended API through `src/public-api.ts`. Document exported symbols with TSDoc so the API reference remains current. Keep application-specific behavior in the demo.
 
 Use strict TypeScript, standalone Angular components, signals, native control flow, and `inject()`. Unit tests use Angular's Vitest builder. Navigation and scroll behavior must be verified through the real demo with Playwright.
 

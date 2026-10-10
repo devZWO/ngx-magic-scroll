@@ -6,20 +6,20 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "ngx-signal-scroll": {
+    "ngx-magic-scroll": {
       "projectType": "library",
-      "root": "projects/ngx-signal-scroll",
-      "sourceRoot": "projects/ngx-signal-scroll/src",
+      "root": "projects/ngx-magic-scroll",
+      "sourceRoot": "projects/ngx-magic-scroll/src",
       "prefix": "lib",
       "architect": {
         "build": {
           "builder": "@angular/build:ng-packagr",
           "configurations": {
             "production": {
-              "tsConfig": "projects/ngx-signal-scroll/tsconfig.lib.prod.json"
+              "tsConfig": "projects/ngx-magic-scroll/tsconfig.lib.prod.json"
             },
             "development": {
-              "tsConfig": "projects/ngx-signal-scroll/tsconfig.lib.json"
+              "tsConfig": "projects/ngx-magic-scroll/tsconfig.lib.json"
             }
           },
           "defaultConfiguration": "production"
@@ -27,9 +27,9 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/ngx-signal-scroll/tsconfig.spec.json",
+            "tsConfig": "projects/ngx-magic-scroll/tsconfig.spec.json",
             "runner": "vitest",
-            "coverageInclude": ["projects/ngx-signal-scroll/src/lib/**/*.ts"],
+            "coverageInclude": ["projects/ngx-magic-scroll/src/lib/**/*.ts"],
             "coverageExclude": ["**/*.spec.ts"],
             "coverageThresholds": {
               "perFile": true,
@@ -66,7 +66,7 @@
               },
               {
                 "glob": "THIRD_PARTY_NOTICES.txt",
-                "input": "projects/ngx-signal-scroll",
+                "input": "projects/ngx-magic-scroll",
                 "output": "/"
               }
             ],

@@ -17,8 +17,8 @@ export default defineConfig({
       ],
       plugins: [
         starlightTypeDoc({
-          entryPoints: ['../projects/ngx-signal-scroll/src/public-api.ts'],
-          tsconfig: '../projects/ngx-signal-scroll/tsconfig.lib.json',
+          entryPoints: ['../projects/ngx-magic-scroll/src/public-api.ts'],
+          tsconfig: '../projects/ngx-magic-scroll/tsconfig.lib.json',
           typeDoc: { disableSources: true },
         }),
       ],

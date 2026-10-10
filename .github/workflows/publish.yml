@@ -30,7 +30,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: npm-package
-          path: dist/ngx-signal-scroll/
+          path: dist/ngx-magic-scroll/
           retention-days: 7
   publish:
     needs: validate

@@ -2,11 +2,12 @@
   "name": "@devzwo/ngx-magic-scroll-workspace",
   "version": "0.0.0",
   "scripts": {
+    "setup:local": "pnpm exec playwright install-deps webkit",
     "ng": "ng",
     "start": "ng serve demo",
     "build": "pnpm run lib:build && pnpm run demo:build && pnpm run docs:build",
-    "lib:build": "ng build ngx-signal-scroll && node scripts/preserve-third-party-notices.mjs",
-    "lib:watch": "ng build ngx-signal-scroll --watch --configuration development",
+    "lib:build": "ng build ngx-magic-scroll && node scripts/preserve-third-party-notices.mjs",
+    "lib:watch": "ng build ngx-magic-scroll --watch --configuration development",
     "demo:build": "ng build demo",
     "demo:build:pages": "ng build demo --base-href /ngx-magic-scroll/demo/",
     "test": "ng test",
@@ -21,7 +22,7 @@
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build",
     "docs:preview": "pnpm --filter docs preview",
-    "package:check": "pnpm run lib:build && node pnpm pack ./dist/ngx-signal-scroll --dry-run",
+    "package:check": "pnpm run lib:build && pnpm --dir dist/ngx-magic-scroll pack --dry-run",
     "release:check": "pnpm run lint && pnpm run test:ci && pnpm run build && pnpm run recipes:check && pnpm run e2e && pnpm run package:check",
     "recipes:check": "pnpm run lib:build && node scripts/check-recipes.mjs"
   },

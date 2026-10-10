@@ -43,7 +43,7 @@ The Angular demo runs at `http://localhost:4200`. Use `pnpm lib:watch` in a sepa
 
 The workspace contains:
 
-- `projects/ngx-signal-scroll`: the library source and public exports. The Angular project retains its original local name; the npm package is `@devzwo/ngx-magic-scroll`.
+- `projects/ngx-magic-scroll`: the library source and public exports. The Angular project retains its original local name; the npm package is `@devzwo/ngx-magic-scroll`.
 - `projects/demo`: runnable examples for checking scroll and navigation behavior.
 - `projects/demo/e2e`: Playwright browser tests.
 - `docs`: Astro/Starlight documentation, with API pages generated from TSDoc comments.

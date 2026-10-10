@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
-const dir = new URL('../dist/ngx-signal-scroll/', import.meta.url);
+const dir = new URL('../dist/ngx-magic-scroll/', import.meta.url);
 const notices = readFileSync(new URL('THIRD_PARTY_NOTICES.txt', dir), 'utf8');
 const license = notices.slice(notices.indexOf('MIT License\n'));
 const banner = `/*!\n * @license\n${license

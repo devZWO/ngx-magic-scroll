@@ -16,13 +16,13 @@ All descendant IDs are anchors by default; `scrollAnchor` is optional.
 `provideMagicScroll()` registers inheritable defaults for prefixes, measured headers and separate
 restoration/interaction behavior. Region and per-call options can override them.
 
-See the [library README](projects/ngx-signal-scroll/README.md) for examples and the migration guide.
+See the [library README](projects/ngx-magic-scroll/README.md) for examples and the migration guide.
 Low-level scrolling and reactive helpers are internal. All four demos use the facade; their 25 existing
 E2E scenarios pass unchanged in Chromium, Firefox and WebKit (75 runs).
 
 ## Workspace
 
-- `projects/ngx-signal-scroll`: publishable `@devzwo/ngx-magic-scroll` library (the Angular project retains its original local name).
+- `projects/ngx-magic-scroll`: publishable `@devzwo/ngx-magic-scroll` library (the Angular project retains its original local name).
 - `projects/demo`: four routed demos: document sync, navigation restoration, Material drawer with rxResource, and master–detail with document scrolling and a dynamic sticky header.
 - `projects/demo/e2e`: Playwright tests.
 - `docs`: Astro/Starlight documentation with API pages generated from TypeScript comments.
@@ -59,7 +59,7 @@ Playwright starts the demo automatically. The scenarios check fragment synchroni
 
 The intended repository is `devZWO/ngx-magic-scroll`, the intended npm package is `@devzwo/ngx-magic-scroll`. See [RELEASING.md](RELEASING.md) for GitHub Pages, npm trusted publishing, version tags, and the first release.
 
-Only `dist/ngx-signal-scroll` is published to npm; the workspace root is private. The build includes the library README and MIT license.
+Only `dist/ngx-magic-scroll` is published to npm; the workspace root is private. The build includes the library README and MIT license.
 
 ## Documentation
 
