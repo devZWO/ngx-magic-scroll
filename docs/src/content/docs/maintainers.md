@@ -35,11 +35,10 @@ Use Node.js 24 and pnpm 12.4.2, as configured in the repository. Fork and clone 
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm lib:build
 pnpm start
 ```
 
-The Angular demo runs at `http://localhost:4200`. Use `pnpm lib:watch` in a separate terminal to rebuild the library as you work, or `pnpm docs:dev` to work on the documentation.
+The Angular demo runs at `http://localhost:4200` and uses the library source directly, so library changes trigger a rebuild automatically. Use `pnpm docs:dev` to work on the documentation, or `pnpm lib:watch` to rebuild the publishable library package.
 
 The workspace contains:
 

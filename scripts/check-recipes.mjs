@@ -52,8 +52,6 @@ import { fileURLToPath } from 'node:url';
  * The package script first builds the library and then runs this file, so the
  * recipe examples are checked against the current library build.
  */
-
-
 const root = fileURLToPath(new URL('../', import.meta.url));
 const recipes = resolve(root, 'docs/src/content/docs/recipes');
 const output = resolve(root, 'tmp/recipe-check');
@@ -78,7 +76,16 @@ writeFileSync(
   JSON.stringify(
     {
       extends: '../../tsconfig.json',
-      compilerOptions: { outDir: './out', types: [], noEmit: true },
+      compilerOptions: {
+        outDir: './out',
+        types: [],
+        noEmit: true,
+        // Check the publishable package rather than the workspace's source mapping.
+        paths: {
+          'ngx-magic-scroll': [resolve(root, 'dist/ngx-magic-scroll')],
+          '@devzwo/ngx-magic-scroll': [resolve(root, 'dist/ngx-magic-scroll')],
+        },
+      },
       files: [],
       references: [],
       include: ['*.ts'],

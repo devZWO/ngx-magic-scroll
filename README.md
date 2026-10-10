@@ -34,14 +34,13 @@ Requires Node.js 24 and pnpm 12.4.2.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm lib:build
 pnpm start
 ```
 
 | Command                 | Purpose                                                 |
 | ----------------------- | ------------------------------------------------------- |
 | `pnpm build`            | Build library, demo, and documentation                  |
-| `pnpm lib:watch`        | Rebuild library during development                      |
+| `pnpm lib:watch`        | Rebuild the publishable library package                 |
 | `pnpm lint`             | Lint TypeScript and Angular templates                   |
 | `pnpm test:ci`          | Run Vitest tests with coverage                          |
 | `pnpm e2e:install`      | Download Playwright browsers                            |
