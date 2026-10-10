@@ -2,12 +2,25 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      skip-site-builds:
+        description: Skip the demo and documentation builds when validating an npm release
+        type: boolean
+        default: false
+      upload-package:
+        description: Upload the validated npm package for the publishing job
+        type: boolean
+        default: false
+    secrets:
+      CODECOV_TOKEN:
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -53,8 +66,16 @@ jobs:
       - run: pnpm pack --dry-run
         working-directory: dist/ngx-magic-scroll
       - run: node scripts/check-recipes.mjs
+      - uses: actions/upload-artifact@v4
+        if: inputs.upload-package
+        with:
+          name: npm-package
+          path: dist/ngx-magic-scroll/
+          if-no-files-found: error
+          retention-days: 7
 
   demo-build:
+    if: ${{ !inputs.skip-site-builds }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -87,6 +108,7 @@ jobs:
           retention-days: 14
 
   docs-build:
+    if: ${{ !inputs.skip-site-builds }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

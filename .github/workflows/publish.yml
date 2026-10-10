@@ -1,37 +1,25 @@
 name: Publish npm package
+
 on:
   release:
     types: [published]
+
 permissions:
   contents: read
+
 concurrency:
   group: npm-publish
   cancel-in-progress: false
+
 jobs:
   validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm test:ci
-      - run: pnpm build
-      - run: pnpm recipes:check
-      - run: pnpm package:check
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-      - run: pnpm exec playwright install --with-deps
-      - run: pnpm e2e
-      - uses: actions/upload-artifact@v4
-        with:
-          name: npm-package
-          path: dist/ngx-magic-scroll/
-          retention-days: 7
+    uses: ./.github/workflows/ci.yml
+    with:
+      skip-site-builds: true
+      upload-package: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   publish:
     needs: validate
     runs-on: ubuntu-latest
@@ -44,7 +32,6 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - run: npm install --global npm@11
       - uses: actions/download-artifact@v4
         with:
           name: npm-package

@@ -1,39 +1,55 @@
 name: Deploy documentation
+
 on:
   workflow_dispatch:
   release:
     types: [published]
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - uses: actions/checkout@v6
+
       - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm docs:build
       - run: pnpm demo:build:pages
+
       - name: Include demo in documentation artifact
         run: |
           mkdir -p docs/dist/demo
           cp -a dist/demo/browser/. docs/dist/demo/
           cp docs/dist/demo/index.html docs/dist/demo/404.html
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs/dist
-      - uses: actions/deploy-pages@v5
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v5
         id: deployment
