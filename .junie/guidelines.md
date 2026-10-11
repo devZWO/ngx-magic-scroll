@@ -1,4 +1,3 @@
-
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
 ## TypeScript Best Practices
@@ -15,7 +14,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Implement lazy loading for feature routes
 - Do NOT use the `@HostBinding` and `@HostListener` decorators. Put host bindings inside the `host` object of the `@Component` or `@Directive` decorator instead
 - Use `NgOptimizedImage` for all static images.
-    - `NgOptimizedImage` does not work for inline base64 images.
+  - `NgOptimizedImage` does not work for inline base64 images.
 
 ## Accessibility Requirements
 
@@ -55,6 +54,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Use the `inject()` function instead of constructor injection
 
 ## Unit Tests
+
 - Use vitest
 - Test edge cases and error handling
 - Use mock data and dependencies where necessary
@@ -62,3 +62,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Do NOT use `NoopAnimationsModule` for it is deprecated
 - Use typechecks instead of casting `any` or `as any`
 - Use create full mock data instead of partials with type `any`.
+
+## Commit Messages
+
+- Commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification (e.g. `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`, `refactor: ...`).
