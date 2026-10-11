@@ -34,10 +34,11 @@ export interface NearestAnchorOptions {
 }
 
 /**
- * Finds the anchor nearest the top edge of the visible scroll area.
+ * Finds the anchor representing the currently read section based on the top activation boundary.
  *
  * Supports scroll-spy behavior to identify the current section while scrolling and
- * synchronize the URL fragment.
+ * synchronize the URL fragment. A section remains active while the user scrolls through
+ * its content until the next section reaches the activation boundary.
  *
  * @remarks
  * This service does not use providedIn: 'root'. Register it in application or component
@@ -48,14 +49,15 @@ export class NearestAnchorProvider {
   private readonly document = inject(DOCUMENT);
 
   /**
-   * Calculates the ID of the anchor nearest the visible top edge.
+   * Calculates the ID of the active anchor based on scroll position and the activation boundary.
    *
-   * 1. Finds matching elements using selector within hostElement, or within document.
-   * 2. Excludes elements whose top edge lies above the configured offset.
-   * 3. Selects the remaining element nearest the top edge.
+   * 1. Evaluates all eligible anchors within the host or document.
+   * 2. Determines the activation boundary (`scrollableTop + headerOffset + headerHeight`).
+   * 3. Selects the latest anchor whose top edge has crossed the boundary (`top <= boundary + 1px`).
+   * 4. Falls back to the first anchor if no anchor has crossed the boundary yet.
    *
    * @param options - Host element, selector, scroll container and header-offset settings.
-   * @returns The nearest anchor's element ID, or undefined if no eligible element exists.
+   * @returns The active anchor's element ID, or undefined if no eligible element exists.
    * @example
    * ```ts
    * const nearestId = nearestAnchorProvider.getNearestAnchor({
@@ -74,33 +76,34 @@ export class NearestAnchorProvider {
 
     // Collects all HTML elements with an id – these are our potential anchor targets
     const anchors = options?.anchors ?? Array.from(host.querySelectorAll<HTMLElement>(selector));
+    if (anchors.length === 0) {
+      return undefined;
+    }
+
     const scrollable =
       options?.scrollable ??
       (options?.hostElement ? injectScrollableParentElement(options.hostElement) : undefined);
     const isDocument =
-      scrollable === this.document.documentElement || scrollable === this.document.body;
-    const top = (isDocument ? 0 : (scrollable?.getBoundingClientRect().top ?? 0)) + offset;
-    // Browser scroll positions may round fractional header heights to whole pixels.
-    const visibleAnchors = anchors.filter((el) => el.getBoundingClientRect().top >= top - 1);
+      !scrollable ||
+      scrollable === this.document.documentElement ||
+      scrollable === this.document.body;
+    const boundary = (isDocument ? 0 : scrollable.getBoundingClientRect().top) + offset;
 
-    // Iterates through all anchors and calculates their distance to the current scroll position (in pixels)
-    const closest = visibleAnchors.reduce(
-      (closest, el) => {
-        // Retrieves the distance of the element to the top edge of the viewport
-        const offset = Math.abs(el.getBoundingClientRect().top);
+    // Subpixel tolerance (1px) for browser rounding
+    const passedAnchors = anchors.filter((el) => el.getBoundingClientRect().top <= boundary + 1);
 
-        // Compares the current distance with the smallest distance so far
-        // and keeps track of the closer element
-        return offset < closest.offset
-          ? { el, offset } // if closer: replace the previous one
-          : closest; // otherwise: keep the previous one
-      },
-      {
-        el: null as HTMLElement | null, // Initial value: no element
-        offset: Number.POSITIVE_INFINITY, // Initial value: maximum distance
-      },
+    if (passedAnchors.length > 0) {
+      // Pick the anchor that crossed the boundary most recently (highest top <= boundary)
+      const active = passedAnchors.reduce((best, el) =>
+        el.getBoundingClientRect().top > best.getBoundingClientRect().top ? el : best,
+      );
+      return active.id;
+    }
+
+    // Before any anchor has reached the boundary, select the first anchor
+    const first = anchors.reduce((best, el) =>
+      el.getBoundingClientRect().top < best.getBoundingClientRect().top ? el : best,
     );
-
-    return closest.el?.id;
+    return first.id;
   }
 }

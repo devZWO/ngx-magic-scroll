@@ -1,16 +1,16 @@
-import {Component, ElementRef, signal} from '@angular/core';
-import {TestBed} from '@angular/core/testing';
-import {ActivatedRoute, Router} from '@angular/router';
-import {BehaviorSubject} from 'rxjs';
-import {ScrollService} from './scroll-service';
-import {NearestAnchorProvider} from './nearest-anchor.provider';
-import {injectedHeaderHeight} from './inject-header-size';
-import {injectScrollableParentElement} from './inject-scrollable-parent';
-import {linkedRouteFragment} from './linked-route-fragment';
-import {NearestAnchorScrollHook} from './nearest-anchor-scroll-hook';
-import {PreserveVisibleAnchorOnResize} from './preserve-visible-anchor-on-resize.directive';
-import {ScrollToFragmentOnFirstDataDirective} from './scroll-to-fragment-on-first-data.directive';
-import {ScrollToFragmentOnDataChangeDirective} from './scroll-to-fragment-on-data-change.directive';
+import { Component, ElementRef, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { ScrollService } from './scroll-service';
+import { NearestAnchorProvider } from './nearest-anchor.provider';
+import { injectedHeaderHeight } from './inject-header-size';
+import { injectScrollableParentElement } from './inject-scrollable-parent';
+import { linkedRouteFragment } from './linked-route-fragment';
+import { NearestAnchorScrollHook } from './nearest-anchor-scroll-hook';
+import { PreserveVisibleAnchorOnResize } from './preserve-visible-anchor-on-resize.directive';
+import { ScrollToFragmentOnFirstDataDirective } from './scroll-to-fragment-on-first-data.directive';
+import { ScrollToFragmentOnDataChangeDirective } from './scroll-to-fragment-on-data-change.directive';
 
 const rect = (top: number, bottom = top + 30) => ({
   top,
@@ -53,7 +53,7 @@ describe('ScrollService', () => {
       top: 180,
       behavior: 'instant',
     });
-    service.scroll('target', {behavior: 'smooth', topOffset: 8});
+    service.scroll('target', { behavior: 'smooth', topOffset: 8 });
     expect(document.documentElement.scrollTo).toHaveBeenLastCalledWith({
       top: 192,
       behavior: 'smooth',
@@ -74,7 +74,7 @@ describe('ScrollService', () => {
     ['always', 20, 80, true],
   ] as const)('visibility %s (%i,%i)', (mode, top, bottom, expected) => {
     const container = element('container', 100, 600);
-    Object.defineProperty(container, 'clientHeight', {value: 500});
+    Object.defineProperty(container, 'clientHeight', { value: 500 });
     container.scrollTo = vi.fn();
     const el = element('target', top, bottom);
     el.scrollIntoView = vi.fn();
@@ -88,8 +88,7 @@ describe('ScrollService', () => {
   });
 });
 it('measures header height and handles absent headers', () => {
-  vi.spyOn(console, 'warn').mockImplementation(() => {
-  });
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   expect(injectedHeaderHeight('.missing', document)).toBe(0);
   element('header', 10, 70);
   expect(injectedHeaderHeight('#header', document)).toBe(60);
@@ -105,49 +104,84 @@ it('finds the nearest auto or scroll ancestor, including injection and missing p
   middle.style.overflowY = 'scroll';
   expect(injectScrollableParentElement(child)).toBe(middle);
   TestBed.configureTestingModule({
-    providers: [{provide: ElementRef, useValue: new ElementRef(child)}],
+    providers: [{ provide: ElementRef, useValue: new ElementRef(child) }],
   });
   expect(TestBed.runInInjectionContext(() => injectScrollableParentElement())).toBe(middle);
   expect(injectScrollableParentElement(outer)).toBeUndefined();
   expect(injectScrollableParentElement(document.createElement('div'))).toBeUndefined();
 });
 it('selects visible anchors with defaults, prefixes, header offsets and container coordinates', () => {
-  TestBed.configureTestingModule({providers: [NearestAnchorProvider]});
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   const provider = TestBed.inject(NearestAnchorProvider);
   expect(provider.getNearestAnchor()).toBeUndefined();
   const a = element('a', 80),
     b = element('b', 40),
     c = element('c', -10);
-  expect(provider.getNearestAnchor()).toBe('b');
+  expect(provider.getNearestAnchor()).toBe('c');
   element('far', 200);
-  expect(provider.getNearestAnchor()).toBe('b');
-  expect(provider.getNearestAnchor({headerOffset: 60})).toBe('a');
+  expect(provider.getNearestAnchor()).toBe('c');
+  expect(provider.getNearestAnchor({ headerOffset: 60 })).toBe('b');
   element('header', 0, 50);
   expect(
-    provider.getNearestAnchor({selector: '[id="a"], [id="b"]', headerSelector: '#header'}),
-  ).toBe('a');
+    provider.getNearestAnchor({ selector: '[id="a"], [id="b"]', headerSelector: '#header' }),
+  ).toBe('b');
   const container = element('container', 100);
   container.style.overflowY = 'auto';
   const host = document.createElement('div');
   container.append(host);
   host.append(a, b, c);
-  expect(provider.getNearestAnchor({hostElement: host})).toBeUndefined();
+  expect(provider.getNearestAnchor({ hostElement: host })).toBe('a');
   a.getBoundingClientRect = () => rect(110);
-  expect(provider.getNearestAnchor({hostElement: host})).toBe('a');
+  expect(provider.getNearestAnchor({ hostElement: host })).toBe('b');
+});
+
+it('keeps the active section while scrolling through a long section until the next section crosses the activation boundary', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+  const sec1 = element('section-1', 0, 1000),
+    sec2 = element('section-2', 1000, 2000),
+    sec3 = element('section-3', 2000, 3000);
+
+  // At top: section-1 is active
+  expect(provider.getNearestAnchor()).toBe('section-1');
+
+  // Scrolled 400px down: section-1 heading is above top (-400), section-2 is at +600 (not crossed yet)
+  sec1.getBoundingClientRect = () => rect(-400, 600);
+  sec2.getBoundingClientRect = () => rect(600, 1600);
+  sec3.getBoundingClientRect = () => rect(1600, 2600);
+  expect(provider.getNearestAnchor()).toBe('section-1');
+
+  // Scrolled further: section-2 reaches boundary (0)
+  sec1.getBoundingClientRect = () => rect(-1000, 0);
+  sec2.getBoundingClientRect = () => rect(0, 1000);
+  sec3.getBoundingClientRect = () => rect(1000, 2000);
+  expect(provider.getNearestAnchor()).toBe('section-2');
+
+  // Scrolled into section-2: section-2 heading is at -300, section-3 is at +700
+  sec1.getBoundingClientRect = () => rect(-1300, -300);
+  sec2.getBoundingClientRect = () => rect(-300, 700);
+  sec3.getBoundingClientRect = () => rect(700, 1700);
+  expect(provider.getNearestAnchor()).toBe('section-2');
+
+  // Scrolling backwards up: section-2 heading goes back below top (+100)
+  sec1.getBoundingClientRect = () => rect(-900, 100);
+  sec2.getBoundingClientRect = () => rect(100, 1100);
+  sec3.getBoundingClientRect = () => rect(1100, 2100);
+  expect(provider.getNearestAnchor()).toBe('section-1');
 });
 
 describe('route fragment', () => {
   it('reads external changes, preserves parameters, clears fragments and handles failed navigation', async () => {
     const fragment = new BehaviorSubject<string | null>('a');
-    const snapshot = {fragment: 'a'};
+    const snapshot = { fragment: 'a' };
     const router = {
       createUrlTree: vi.fn(() => 'tree'),
       navigateByUrl: vi.fn(() => Promise.resolve(true)),
     };
     TestBed.configureTestingModule({
       providers: [
-        {provide: ActivatedRoute, useValue: {fragment, snapshot}},
-        {provide: Router, useValue: router},
+        { provide: ActivatedRoute, useValue: { fragment, snapshot } },
+        { provide: Router, useValue: router },
       ],
     });
     const value = TestBed.runInInjectionContext(linkedRouteFragment);
@@ -164,8 +198,7 @@ describe('route fragment', () => {
     fragment.next('c');
     TestBed.tick();
     expect(value()).toBe('c');
-    vi.spyOn(console, 'log').mockImplementation(() => {
-    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
     router.navigateByUrl.mockRejectedValueOnce(new Error('failed'));
     value.set(null);
     TestBed.tick();
@@ -186,21 +219,20 @@ describe('route fragment', () => {
     ScrollToFragmentOnFirstDataDirective,
     ScrollToFragmentOnDataChangeDirective,
   ],
-  template: `
-    <div style="overflow-y:auto">
-      <div
-        appNearestAnchorScrollHook
-        [selectorPrefix]="prefix()"
-        [debounceTime]="debounce()"
-        [preserveSelectorPrefix]="resizePrefix()"
-        (appNearestAnchorScrollHook)="anchor = $event"
-        appPreserveVisibleAnchorOnResize
-        [appScrollingOnFirstData]="source"
-        [appScrollingOnDataChange]="source"
-      >
-        <div id="item-1"></div>
-      </div>
-    </div>`,
+  template: ` <div style="overflow-y:auto">
+    <div
+      appNearestAnchorScrollHook
+      [selectorPrefix]="prefix()"
+      [debounceTime]="debounce()"
+      [preserveSelectorPrefix]="resizePrefix()"
+      (appNearestAnchorScrollHook)="anchor = $event"
+      appPreserveVisibleAnchorOnResize
+      [appScrollingOnFirstData]="source"
+      [appScrollingOnDataChange]="source"
+    >
+      <div id="item-1"></div>
+    </div>
+  </div>`,
 })
 class Host {
   prefix = signal('item-');
@@ -209,35 +241,34 @@ class Host {
   anchor = '';
   data = signal<unknown>(undefined);
   loading = signal(true);
-  source = {data: this.data, isLoading: this.loading};
+  source = { data: this.data, isLoading: this.loading };
 }
 
 describe('directives', () => {
   function setup(fragment: string | null = 'item-1') {
     const routeFragment = new BehaviorSubject(fragment);
-    const scroll = {scroll: vi.fn()};
+    const scroll = { scroll: vi.fn() };
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
         NearestAnchorProvider,
-        {provide: ScrollService, useValue: scroll},
-        {provide: ActivatedRoute, useValue: {fragment: routeFragment, snapshot: {fragment}}},
+        { provide: ScrollService, useValue: scroll },
+        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment } } },
         {
           provide: Router,
-          useValue: {createUrlTree: vi.fn(), navigateByUrl: vi.fn(() => Promise.resolve(true))},
+          useValue: { createUrlTree: vi.fn(), navigateByUrl: vi.fn(() => Promise.resolve(true)) },
         },
       ],
     });
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
-    return {fixture, scroll, routeFragment};
+    return { fixture, scroll, routeFragment };
   }
 
   it('waits for loaded data, scrolls initially once, restores on changes, emits anchors and resizes', async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, 'warn').mockImplementation(() => {
-    });
-    const {fixture, scroll, routeFragment} = setup();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { fixture, scroll, routeFragment } = setup();
     const host = fixture.componentInstance;
     host.data.set([1]);
     fixture.detectChanges();
@@ -293,9 +324,8 @@ describe('directives', () => {
   });
   it('respects bound debounce times and later updates, and filters resize restoration by prefix', async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, 'warn').mockImplementation(() => {
-    });
-    const {fixture, scroll} = setup();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { fixture, scroll } = setup();
     const host = fixture.componentInstance;
     const provider = vi
       .spyOn(TestBed.inject(NearestAnchorProvider), 'getNearestAnchor')
@@ -335,7 +365,7 @@ describe('directives', () => {
   });
   it('restarts the debounce on each scroll and cancels pending work when destroyed', async () => {
     vi.useFakeTimers();
-    const {fixture} = setup();
+    const { fixture } = setup();
     const host = fixture.componentInstance;
     host.debounce.set(100);
     fixture.detectChanges();
@@ -366,8 +396,7 @@ describe('directives', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
   it('handles an absent initial fragment and absent scroll parents', () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {
-    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const listen = vi.spyOn(document, 'addEventListener');
     const remove = vi.spyOn(document, 'removeEventListener');
     TestBed.overrideComponent(Host, {
@@ -375,7 +404,7 @@ describe('directives', () => {
         template: `<div appNearestAnchorScrollHook [appScrollingOnFirstData]="source" [appScrollingOnDataChange]="source"></div>`,
       },
     });
-    const {fixture, scroll} = setup(null);
+    const { fixture, scroll } = setup(null);
     fixture.componentInstance.data.set([]);
     fixture.componentInstance.loading.set(false);
     fixture.detectChanges();
@@ -392,11 +421,11 @@ it('handles root viewport visibility and documents using body as scrolling eleme
   document.body.scrollTo = vi.fn();
   vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(500);
   const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
-  Object.defineProperty(document, 'scrollingElement', {configurable: true, value: document.body});
+  Object.defineProperty(document, 'scrollingElement', { configurable: true, value: document.body });
   const service = TestBed.inject(ScrollService);
-  expect(service.scroll('root-target', {ignoreWhenInView: 'full'})).toBe(false);
-  expect(service.scroll('root-target', {scrollable: document.body})).toBe(true);
-  expect(document.body.scrollTo).toHaveBeenCalledWith({top: 80, behavior: 'instant'});
+  expect(service.scroll('root-target', { ignoreWhenInView: 'full' })).toBe(false);
+  expect(service.scroll('root-target', { scrollable: document.body })).toBe(true);
+  expect(document.body.scrollTo).toHaveBeenCalledWith({ top: 80, behavior: 'instant' });
   if (original) Object.defineProperty(document, 'scrollingElement', original);
   else Reflect.deleteProperty(document, 'scrollingElement');
 });
@@ -404,7 +433,7 @@ it('can destroy a scroll hook before its view has initialized', () => {
   TestBed.configureTestingModule({
     providers: [
       NearestAnchorProvider,
-      {provide: ElementRef, useValue: new ElementRef(document.body)},
+      { provide: ElementRef, useValue: new ElementRef(document.body) },
     ],
   });
   const directive = TestBed.runInInjectionContext(() => new NearestAnchorScrollHook());
@@ -412,10 +441,10 @@ it('can destroy a scroll hook before its view has initialized', () => {
 });
 
 it('keeps anchors aligned with fractional header heights despite browser scroll rounding', () => {
-  TestBed.configureTestingModule({providers: [NearestAnchorProvider]});
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   element('aligned', 104);
   element('next', 544);
-  expect(TestBed.inject(NearestAnchorProvider).getNearestAnchor({headerOffset: 104.5})).toBe(
+  expect(TestBed.inject(NearestAnchorProvider).getNearestAnchor({ headerOffset: 104.5 })).toBe(
     'aligned',
   );
 });
@@ -431,23 +460,23 @@ it('scrolls only the selected container without moving its ancestors', () => {
     topOffset: 20,
     behavior: 'smooth',
   });
-  expect(container.scrollTo).toHaveBeenCalledWith({top: 160, behavior: 'smooth'});
+  expect(container.scrollTo).toHaveBeenCalledWith({ top: 160, behavior: 'smooth' });
   expect(target.scrollIntoView).not.toHaveBeenCalled();
 });
 
 it('uses explicitly selected anchors and root viewport coordinates in the facade', () => {
-  TestBed.configureTestingModule({providers: [NearestAnchorProvider]});
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   const first = element('first', 16);
   element('unselected', 0);
   const root = document.documentElement;
   root.getBoundingClientRect = () => rect(-500);
   const provider = TestBed.inject(NearestAnchorProvider);
-  expect(provider.getNearestAnchor({anchors: [first], scrollable: root, headerOffset: 16})).toBe(
+  expect(provider.getNearestAnchor({ anchors: [first], scrollable: root, headerOffset: 16 })).toBe(
     'first',
   );
   expect(
-    provider.getNearestAnchor({anchors: [first], scrollable: document.body, headerOffset: 16}),
+    provider.getNearestAnchor({ anchors: [first], scrollable: document.body, headerOffset: 16 }),
   ).toBe('first');
-  expect(provider.getNearestAnchor({anchors: [], scrollable: root})).toBeUndefined();
+  expect(provider.getNearestAnchor({ anchors: [], scrollable: root })).toBeUndefined();
   Reflect.deleteProperty(root, 'getBoundingClientRect');
 });

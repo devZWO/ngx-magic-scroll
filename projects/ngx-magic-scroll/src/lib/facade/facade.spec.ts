@@ -287,11 +287,9 @@ it('debounces scroll spy, reacts to prefix changes and ignores scrolls before re
   render();
   expect(host.scroll().activeAnchor()).toBe('item-1');
   host.options.set({ anchorPrefix: 'absent-', debounceTime: 0 });
-  render();
   // Explicit anchors remain eligible; remove them to exercise no nearest target.
-  container
-    .querySelectorAll('[data-scroll-anchor]')
-    .forEach((el) => el.removeAttribute('data-scroll-anchor'));
+  container.querySelectorAll('[data-scroll-anchor]').forEach((el) => el.remove());
+  render();
   container.dispatchEvent(new Event('scroll'));
   vi.runOnlyPendingTimers();
   render();

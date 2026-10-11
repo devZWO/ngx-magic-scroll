@@ -9,11 +9,19 @@ The route fragment is the shared anchor identifier used by scroll tracking, expl
 
 ## Scrolling records an anchor
 
-After scrolling settles, the region selects an eligible anchor whose top edge is at or below the effective top boundary, accounting for the container and header offset. It chooses the nearest of those candidates. This is based on anchor top edges, rather than the section occupying the largest visible area.
+After scrolling settles, the region determines which section the user is currently reading based on the activation boundary:
 
-Scroll-spy updates are debounced by 500 ms by default. During movement, the fragment can therefore lag behind the viewport. If there is no eligible candidate, the existing fragment remains unchanged.
+`boundary = containerTop + headerHeight + headerOffset`
 
-`activeAnchor()` exposes the current fragment and reacts to route-fragment changes. Use it to highlight your navigation, but do not treat it as proof that the corresponding element currently exists or is visible. A URL can name a missing anchor, and a tall section whose top has passed above the boundary does not remain selected merely because its body is visible.
+1. **Top boundary reference**: For document scrolling, `containerTop` is `0`. For nested scrollable containers (`overflow: auto | scroll`), `containerTop` is the container's top edge (`getBoundingClientRect().top`).
+2. **Sticky or fixed headers**: With `headerSelector`, the measured height of any sticky header is added so content obscured beneath the header does not trigger premature activation.
+3. **Offset spacing**: With `headerOffset`, custom pixel padding or trigger line offsets can be configured.
+
+An anchor becomes active as soon as its top edge reaches or crosses the activation boundary (`top <= boundary`). When scrolling through tall or multi-paragraph sections, that section **remains active** while being read, even after its heading has scrolled past the top boundary, until the next section reaches the activation boundary. When scrolling backwards (upwards), as soon as a section heading drops back below the boundary, the preceding section becomes active again. When scrolled above all anchors, the first anchor is selected.
+
+Scroll-spy updates are debounced by 500 ms by default (`debounceTime`). During continuous movement, the fragment can therefore lag behind the viewport until scrolling pauses. If there are no eligible candidates, the existing fragment remains unchanged.
+
+`activeAnchor()` exposes the current fragment as a signal and reacts to route-fragment changes. Use it to highlight active navigation links and scroll-spy indicators.
 
 ## Explicit navigation requests movement
 

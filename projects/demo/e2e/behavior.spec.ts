@@ -115,7 +115,7 @@ test('prefix filtering excludes a closer intermediate anchor and can be disabled
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
   await placeAnchor(page, '#zwischen-kapitel-3', '.viewport', 0);
-  await expect(page).toHaveURL(/#kapitel-4$/);
+  await expect(page).toHaveURL(/#kapitel-3$/);
   await page.getByLabel('Only consider chapter anchors').uncheck();
   await expect(page).toHaveURL(/#zwischen-kapitel-3$/);
 });
@@ -310,12 +310,155 @@ test('wheel scrolling the master-detail page updates the active project without 
   await expect
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(documentPosition + 100);
-  await expect(page).toHaveURL(/#projekt-9$/);
-  await expect(page.getByRole('button', { name: 'Project 9', exact: true })).toHaveAttribute(
+  await expect(page).toHaveURL(/#projekt-8$/);
+  await expect(page.getByRole('button', { name: 'Project 8', exact: true })).toHaveAttribute(
     'aria-current',
     'true',
   );
   expect(await page.locator('.portfolio-master').evaluate((el) => el.scrollTop)).toBe(
     masterPosition,
   );
+  await page.mouse.wheel(0, 300);
+  await expect(page).toHaveURL(/#projekt-9$/);
+  await expect(page.getByRole('button', { name: 'Project 9', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+});
+
+test('reading within a section taller than the viewport keeps that section active when its heading leaves view and only changes when the next section crosses the activation boundary', async ({
+  page,
+}) => {
+  await page.goto('/master-detail#projekt-2');
+
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-2')
+        .evaluate((el) =>
+          Math.abs(
+            el.getBoundingClientRect().top -
+              document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom -
+              16,
+          ),
+        ),
+    )
+    .toBeLessThan(3);
+  await expect(page.getByRole('button', { name: 'Project 2', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  await expect(page).toHaveURL(/#projekt-2$/);
+
+  // Scroll 200px into Project 2 (each section has min-height 440px)
+  await page.locator('#projekt-2').hover();
+  await page.mouse.wheel(0, 200);
+
+  // Project 2 heading is now above the header, Project 3 heading is still below the header
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-2')
+        .evaluate(
+          (el) =>
+            el.getBoundingClientRect().top <
+            document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom,
+        ),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-3')
+        .evaluate(
+          (el) =>
+            el.getBoundingClientRect().top >
+            document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom + 50,
+        ),
+    )
+    .toBe(true);
+
+  // Active anchor and URL MUST remain project-2
+  await expect(page).toHaveURL(/#projekt-2$/);
+  await expect(page.getByRole('button', { name: 'Project 2', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Project 3', exact: true })).not.toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+
+  // Now scroll further down so Project 3 heading crosses the header threshold
+  await page.mouse.wheel(0, 300);
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-3')
+        .evaluate(
+          (el) =>
+            el.getBoundingClientRect().top <=
+            document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom + 16,
+        ),
+    )
+    .toBe(true);
+
+  // Now Project 3 becomes active
+  await expect(page).toHaveURL(/#projekt-3$/);
+  await expect(page.getByRole('button', { name: 'Project 3', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+
+  // Scroll back up into Project 2
+  await page.mouse.wheel(0, -300);
+  await expect(page).toHaveURL(/#projekt-2$/);
+  await expect(page.getByRole('button', { name: 'Project 2', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+});
+
+test('reading within a container section keeps that section active when heading leaves viewport until the next heading crosses top', async ({
+  page,
+}) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
+
+  // Scroll viewport down into kapitel-1 so its heading is above top (< 0)
+  await page.locator('.viewport').evaluate((el) => {
+    el.scrollTop = 150;
+    el.dispatchEvent(new Event('scroll'));
+  });
+
+  await expect
+    .poll(() =>
+      page.locator('#kapitel-1').evaluate((el) => {
+        const viewportTop = document.querySelector('.viewport')!.getBoundingClientRect().top;
+        return el.getBoundingClientRect().top - viewportTop;
+      }),
+    )
+    .toBeLessThan(0);
+  await expect
+    .poll(() =>
+      page.locator('#kapitel-2').evaluate((el) => {
+        const viewportTop = document.querySelector('.viewport')!.getBoundingClientRect().top;
+        return el.getBoundingClientRect().top - viewportTop;
+      }),
+    )
+    .toBeGreaterThan(50);
+
+  // Active anchor and URL MUST remain kapitel-1
+  await expect(page).toHaveURL(/#kapitel-1$/);
+  await expect(page.locator('output')).toHaveText('kapitel-1');
+
+  // Scroll down so kapitel-2 crosses the top edge
+  await page.locator('.viewport').evaluate((el) => {
+    el.scrollTop = 350;
+    el.dispatchEvent(new Event('scroll'));
+  });
+
+  await expect(page).toHaveURL(/#kapitel-2$/);
+  await expect(page.locator('output')).toHaveText('kapitel-2');
 });

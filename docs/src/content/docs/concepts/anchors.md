@@ -15,6 +15,13 @@ Use IDs derived from the identity of your content, such as a project ID. An arra
 
 Restoration returns to an anchor's position with the configured top offset. It does not remember the exact pixel distance the user had scrolled into that section.
 
+## Configuring activation boundaries and scroll offsets
+
+`magicScroll` computes both scroll alignment and active section detection using the top offset:
+
+- **`headerOffset`**: Static spacing in pixels (e.g. `headerOffset: 24`), adding visual breathing room above section headings.
+- **`headerSelector`**: CSS selector for a fixed or sticky navigation bar (e.g. `headerSelector: '.app-header'`). Its dynamically measured height is automatically added to the offset so obscured elements do not trigger activation or get covered during scroll restoration.
+
 ## A region selects its anchors
 
 By default, all descendant elements with non-empty IDs participate. This includes IDs on headings or controls, so a region can contain more anchors than your section navigation exposes.
