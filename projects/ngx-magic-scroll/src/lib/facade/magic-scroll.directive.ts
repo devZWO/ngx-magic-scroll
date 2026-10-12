@@ -363,9 +363,9 @@ export class MagicScrollDirective {
    */
   private attachListeners(target: EventTarget): void {
     target.addEventListener('scroll', this.onScroll);
-    target.addEventListener('wheel', this.onUserIntent);
-    target.addEventListener('touchstart', this.onUserIntent);
-    target.addEventListener('touchmove', this.onUserIntent);
+    target.addEventListener('wheel', this.onUserIntent, { passive: true });
+    target.addEventListener('touchstart', this.onUserIntent, { passive: true });
+    target.addEventListener('touchmove', this.onUserIntent, { passive: true });
     target.addEventListener('keydown', this.onKeyDown);
     this.document.addEventListener('keydown', this.onKeyDown);
   }
