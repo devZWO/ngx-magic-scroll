@@ -9,6 +9,10 @@ export interface MagicScrollOptions {
   headerSelector?: string;
   /** Gap below the header, or the complete top offset when no header is selected. */
   headerOffset?: number;
+  /** Bottom offset in pixels to adjust the active reading boundary from the bottom. */
+  bottomOffset?: number;
+  /** Relative activation threshold (0.0 to 1.0) defining the trigger line within the visible reading area. */
+  activationThreshold?: number;
   /** Restoration and deliberate user navigation have separate defaults. */
   behavior?: {
     restoration?: ScrollBehavior;
@@ -26,6 +30,8 @@ export interface ResolvedMagicScrollOptions {
   anchorPrefix: string;
   headerSelector: string;
   headerOffset: number;
+  bottomOffset: number;
+  activationThreshold: number;
   behavior: { restoration: ScrollBehavior; interaction: ScrollBehavior };
   debounceTime: number;
   ignoreWhenInView: NonNullable<ScrollOptions['ignoreWhenInView']>;
@@ -37,6 +43,8 @@ const defaults: ResolvedMagicScrollOptions = {
   anchorPrefix: '',
   headerSelector: '',
   headerOffset: 0,
+  bottomOffset: 0,
+  activationThreshold: 0,
   behavior: { restoration: 'instant', interaction: 'smooth' },
   debounceTime: 500,
   ignoreWhenInView: 'none',
@@ -52,6 +60,8 @@ export function resolveMagicScrollOptions(
     anchorPrefix: options.anchorPrefix ?? parent.anchorPrefix,
     headerSelector: options.headerSelector ?? parent.headerSelector,
     headerOffset: options.headerOffset ?? parent.headerOffset,
+    bottomOffset: options.bottomOffset ?? parent.bottomOffset,
+    activationThreshold: options.activationThreshold ?? parent.activationThreshold,
     behavior: {
       restoration: options.behavior?.restoration ?? parent.behavior.restoration,
       interaction: options.behavior?.interaction ?? parent.behavior.interaction,

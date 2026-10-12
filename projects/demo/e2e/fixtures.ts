@@ -25,8 +25,8 @@ export async function atOffset(page: Page, anchor: string, container: string, of
           (el, args) =>
             Math.abs(
               el.getBoundingClientRect().top -
-              document.querySelector(args.container)!.getBoundingClientRect().top -
-              args.offset,
+                document.querySelector(args.container)!.getBoundingClientRect().top -
+                args.offset,
             ),
           { container, offset },
         ),

@@ -9,11 +9,27 @@ The route fragment is the shared anchor identifier used by scroll tracking, expl
 
 ## Scrolling records an anchor
 
-After scrolling settles, the region selects an eligible anchor whose top edge is at or below the effective top boundary, accounting for the container and header offset. It chooses the nearest of those candidates. This is based on anchor top edges, rather than the section occupying the largest visible area.
+After scrolling settles, the region determines which section the user is currently reading based on an evaluated visible reading area and a hybrid evaluation model:
 
-Scroll-spy updates are debounced by 500 ms by default. During movement, the fragment can therefore lag behind the viewport. If there is no eligible candidate, the existing fragment remains unchanged.
+- **Top boundary (`topBoundary`)**: `containerTop + headerHeight + headerOffset`
+  - For document scrolling, `containerTop` is `0`.
+  - For nested scrollable containers (`overflow: auto | scroll`), `containerTop` is the container's top edge (`getBoundingClientRect().top`).
+  - With `headerSelector`, sticky header height is measured and added dynamically.
+  - With `headerOffset`, custom pixel padding or trigger line offsets are included.
+- **Bottom boundary (`bottomBoundary`)**: `(isDocument ? window.innerHeight : containerBottom) - bottomOffset`
+  - With `bottomOffset`, bottom margins or space occupied by sticky footers and bottom floating bars are excluded from the active evaluation window.
+- **Trigger line (`triggerLine`)**: `topBoundary + (bottomBoundary - topBoundary) * activationThreshold`
+  - With `activationThreshold` (`0.0` to `1.0`, default `0.0`), developers can position the active trigger focal line anywhere across the visible reading band (e.g. `0.3` for upper-third reading focus, `0.5` for center trigger).
 
-`activeAnchor()` exposes the current fragment and reacts to route-fragment changes. Use it to highlight your navigation, but do not treat it as proof that the corresponding element currently exists or is visible. A URL can name a missing anchor, and a tall section whose top has passed above the boundary does not remain selected merely because its body is visible.
+### Evaluation Priority
+
+1. **Fully Contained Sections (Full Containment Elevation)**: If an upcoming section is 100% visible within the reading area (`top >= topBoundary - 1` and `bottom <= bottomBoundary + 1`), it becomes active immediately—even if a small tail of the previous section is still visible at the top. If multiple sections are fully visible, the topmost fully contained section is selected.
+2. **Tall Section Reading Retention (Reading Line Fallback)**: For sections that are taller than the viewport (or long multi-paragraph articles), the section remains active while scrolling through its body (`top <= triggerLine + 1`) until a subsequent section crosses the trigger line or becomes fully visible.
+3. **Top of Page Fallback**: When scrolled above all anchors, the first anchor is selected.
+
+Scroll-spy updates are debounced by 500 ms by default (`debounceTime`). During continuous movement, the fragment can therefore lag behind the viewport until scrolling pauses. If there are no eligible candidates, the existing fragment remains unchanged.
+
+`activeAnchor()` exposes the current fragment as a signal and reacts to route-fragment changes. Use it to highlight active navigation links and scroll-spy indicators.
 
 ## Explicit navigation requests movement
 

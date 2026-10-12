@@ -20,10 +20,44 @@ export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>
         >Top offset
         <select #offsetInput [value]="offset()" (change)="offset.set(+offsetInput.value)">
           <option value="0">0 px</option>
+          <option value="16">16 px</option>
           <option value="20">20 px</option>
           <option value="64">64 px</option>
         </select></label
       >
+      <label
+        >Bottom offset
+        <select
+          #bottomOffsetInput
+          [value]="bottomOffset()"
+          (change)="bottomOffset.set(+bottomOffsetInput.value)"
+        >
+          <option value="0">0 px</option>
+          <option value="20">20 px</option>
+          <option value="48">48 px</option>
+          <option value="80">80 px</option>
+        </select></label
+      >
+      <label
+        >Activation threshold
+        <select
+          #thresholdInput
+          [value]="activationThreshold()"
+          (change)="activationThreshold.set(+thresholdInput.value)"
+        >
+          <option value="0">0% (Top / Header)</option>
+          <option value="0.25">25% (Upper quarter)</option>
+          <option value="0.33">33% (Upper third)</option>
+          <option value="0.5">50% (Center)</option>
+          <option value="0.75">75% (Lower quarter)</option>
+        </select></label
+      >
+      @if (showOverlayToggle()) {
+        <label
+          ><input type="checkbox" [checked]="overlay()" (change)="overlay.set(!overlay())" />Show
+          active zone overlay</label
+        >
+      }
       @if (showVisibility()) {
         <label
           >Skip scrolling
@@ -67,11 +101,15 @@ export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>
 export class ScrollOptionsPanel {
   readonly behavior = model<ScrollBehavior>('instant');
   readonly offset = model(0);
+  readonly bottomOffset = model(0);
+  readonly activationThreshold = model(0);
+  readonly overlay = model(false);
   readonly visibility = model<VisibilityMode>('none');
   readonly debounceTime = model(500);
   readonly onlyPrefixed = model(true);
   readonly showVisibility = input(false);
   readonly showSpy = input(false);
+  readonly showOverlayToggle = input(true);
   setBehavior(value: string) {
     if (value === 'instant' || value === 'smooth' || value === 'auto') this.behavior.set(value);
   }

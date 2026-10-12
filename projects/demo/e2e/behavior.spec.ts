@@ -310,12 +310,225 @@ test('wheel scrolling the master-detail page updates the active project without 
   await expect
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(documentPosition + 100);
-  await expect(page).toHaveURL(/#projekt-9$/);
-  await expect(page.getByRole('button', { name: 'Project 9', exact: true })).toHaveAttribute(
+  await expect(page).toHaveURL(/#projekt-8$/);
+  await expect(page.getByRole('button', { name: 'Project 8', exact: true })).toHaveAttribute(
     'aria-current',
     'true',
   );
   expect(await page.locator('.portfolio-master').evaluate((el) => el.scrollTop)).toBe(
     masterPosition,
   );
+  await page.mouse.wheel(0, 300);
+  await expect(page).toHaveURL(/#projekt-9$/);
+  await expect(page.getByRole('button', { name: 'Project 9', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+});
+
+test('reading within a section taller than the viewport keeps that section active when its heading leaves view and only changes when the next section crosses the activation boundary', async ({
+  page,
+}) => {
+  await page.goto('/master-detail#projekt-2');
+
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-2')
+        .evaluate((el) =>
+          Math.abs(
+            el.getBoundingClientRect().top -
+              document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom -
+              16,
+          ),
+        ),
+    )
+    .toBeLessThan(3);
+  await expect(page.getByRole('button', { name: 'Project 2', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  await expect(page).toHaveURL(/#projekt-2$/);
+
+  // Scroll 200px into Project 2 (each section has min-height 440px)
+  await page.locator('#projekt-2').hover();
+  await page.mouse.wheel(0, 200);
+
+  // Project 2 heading is now above the header, Project 3 heading is still below the header
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-2')
+        .evaluate(
+          (el) =>
+            el.getBoundingClientRect().top <
+            document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom,
+        ),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-3')
+        .evaluate(
+          (el) =>
+            el.getBoundingClientRect().top >
+            document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom + 50,
+        ),
+    )
+    .toBe(true);
+
+  // Active anchor and URL MUST remain project-2
+  await expect(page).toHaveURL(/#projekt-2$/);
+  await expect(page.getByRole('button', { name: 'Project 2', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Project 3', exact: true })).not.toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+
+  // Now scroll further down so Project 3 heading crosses the header threshold
+  await page.mouse.wheel(0, 300);
+  await expect
+    .poll(() =>
+      page
+        .locator('#projekt-3')
+        .evaluate(
+          (el) =>
+            el.getBoundingClientRect().top <=
+            document.querySelector('.portfolio-header')!.getBoundingClientRect().bottom + 16,
+        ),
+    )
+    .toBe(true);
+
+  // Now Project 3 becomes active
+  await expect(page).toHaveURL(/#projekt-3$/);
+  await expect(page.getByRole('button', { name: 'Project 3', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+
+  // Scroll back up into Project 2
+  await page.mouse.wheel(0, -300);
+  await expect(page).toHaveURL(/#projekt-2$/);
+  await expect(page.getByRole('button', { name: 'Project 2', exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+});
+
+test('container scrolling activates fully visible sections and retains active reading state when tall', async ({
+  page,
+}) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
+
+  // Place kapitel-2 inside viewport so it is fully visible below the top edge
+  await placeAnchor(page, '#kapitel-2', '.viewport', 40);
+
+  // kapitel-2 is fully contained within the visible container area
+  await expect(page).toHaveURL(/#kapitel-2$/);
+  await expect(page.locator('output')).toHaveText('kapitel-2');
+
+  // When sections inside the container are tall (taller than container height), reading fallback keeps section active
+  await page.locator('#kapitel-2').evaluate((el) => {
+    (el as HTMLElement).style.minHeight = '600px';
+  });
+  await placeAnchor(page, '#kapitel-2', '.viewport', -100);
+
+  // kapitel-2 heading is scrolled past container top, but kapitel-3 is still below container bottom
+  await expect(page).toHaveURL(/#kapitel-2$/);
+  await expect(page.locator('output')).toHaveText('kapitel-2');
+});
+
+test('live activation threshold adjustment changes section trigger point', async ({ page }) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
+
+  // Place kapitel-2 at top -200 (scrolled past top) and kapitel-3 at top 250
+  // Container height is 480px.
+  // With threshold 0% (trigger line = 0px), kapitel-3 (top 250 > 0) is below trigger line, so kapitel-2 is active
+  await page.locator('#kapitel-2').evaluate((el) => {
+    (el as HTMLElement).style.minHeight = '450px';
+  });
+  await placeAnchor(page, '#kapitel-2', '.viewport', -200);
+  await expect(page).toHaveURL(/#kapitel-2$/);
+  await expect(page.locator('output')).toHaveText('kapitel-2');
+
+  // Now change activation threshold live to 75% (0.75 * 480 = 360px)
+  // Since kapitel-3 top (250px) is <= 360px trigger line, kapitel-3 becomes active immediately
+  await page.getByLabel('Activation threshold').selectOption('0.75');
+  await page.locator('.viewport').dispatchEvent('scroll');
+
+  await expect(page).toHaveURL(/#kapitel-3$/);
+  await expect(page.locator('output')).toHaveText('kapitel-3');
+});
+
+test('toggling active zone overlay renders exclusion zones and dynamic trigger badge', async ({
+  page,
+}) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+
+  // Overlay is initially hidden
+  await expect(page.locator('.active-zone-overlay')).toBeHidden();
+
+  // Toggle overlay on
+  await page.getByLabel('Show active zone overlay').check();
+  await expect(page.locator('.active-zone-overlay')).toBeVisible();
+  await expect(page.locator('[data-testid="reading-area-zone"]')).toBeVisible();
+  await expect(page.locator('[data-testid="trigger-line"]')).toBeVisible();
+  await expect(page.locator('[data-testid="trigger-line-badge"]')).toHaveText('Trigger Line (0%)');
+
+  // Adjust offsets and threshold
+  await page.getByLabel('Top offset').selectOption('20');
+  await page.getByLabel('Bottom offset').selectOption('48');
+  await page.getByLabel('Activation threshold').selectOption('0.5');
+
+  await expect(page.locator('[data-testid="top-exclusion-zone"]')).toContainText(
+    'Top Exclusion (20px)',
+  );
+  await expect(page.locator('[data-testid="bottom-exclusion-zone"]')).toContainText(
+    'Bottom Exclusion (48px)',
+  );
+  await expect(page.locator('[data-testid="trigger-line-badge"]')).toHaveText('Trigger Line (50%)');
+
+  // Navigation buttons still work through the non-blocking overlay
+  await page.getByRole('button', { name: 'kapitel-4', exact: true }).click();
+  await expect(page).toHaveURL(/#kapitel-4$/);
+
+  // Toggle overlay off
+  await page.getByLabel('Show active zone overlay').uncheck();
+  await expect(page.locator('.active-zone-overlay')).toBeHidden();
+});
+
+test('master-detail supports live active zone overlay and dynamic header offset updates', async ({
+  page,
+}) => {
+  await page.goto('/master-detail');
+  await page.getByText('Options', { exact: true }).click();
+
+  await page.getByLabel('Show active zone overlay').check();
+  await expect(page.locator('.active-zone-overlay')).toBeVisible();
+  await expect(page.locator('[data-testid="top-exclusion-zone"]')).toBeVisible();
+
+  // Expanding header dynamically increases measured header height and top exclusion zone
+  const initialTopHeight = await page
+    .locator('[data-testid="top-exclusion-zone"]')
+    .evaluate((el) => el.getBoundingClientRect().height);
+
+  await page.getByRole('button', { name: 'Change header height' }).click();
+
+  await expect
+    .poll(async () => {
+      const newHeight = await page
+        .locator('[data-testid="top-exclusion-zone"]')
+        .evaluate((el) => el.getBoundingClientRect().height);
+      return newHeight > initialTopHeight;
+    })
+    .toBe(true);
 });

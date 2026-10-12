@@ -1,19 +1,23 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatDrawerContent, MatSidenavModule } from '@angular/material/sidenav';
 import { delay, map, of, timer } from 'rxjs';
 import { ScrollOptionsPanel, VisibilityMode } from './scroll-options';
+import { ActiveZoneOverlay } from './active-zone-overlay';
 import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scroll';
 
 @Component({
-  imports: [MagicScrollDirective, ScrollOptionsPanel],
+  imports: [MagicScrollDirective, ScrollOptionsPanel, ActiveZoneOverlay],
   providers: [provideMagicScroll({ anchorPrefix: 'kapitel-' })],
   template: `<h1>Document · Synchronize anchors</h1>
     <p>Scrolling updates the active section and the URL fragment.</p>
     <app-scroll-options
       [(behavior)]="behavior"
       [(offset)]="offset"
+      [(bottomOffset)]="bottomOffset"
+      [(activationThreshold)]="activationThreshold"
+      [(overlay)]="showOverlay"
       [(visibility)]="visibility"
       [(debounceTime)]="debounceTime"
       [(onlyPrefixed)]="onlyPrefixed"
@@ -30,6 +34,14 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
       Active anchor: <output>{{ scroll.activeAnchor() }}</output>
     </p>
     <div class="viewport" #viewport>
+      @if (showOverlay()) {
+        <app-active-zone-overlay
+          [target]="viewport"
+          [headerOffset]="offset()"
+          [bottomOffset]="bottomOffset()"
+          [activationThreshold]="activationThreshold()"
+        />
+      }
       <div magicScroll #scroll="magicScroll" [scrollOptions]="options()">
         @for (id of sections; track id) {
           <section [id]="id">
@@ -45,6 +57,9 @@ export class DocumentExample {
   readonly sections = ['kapitel-1', 'kapitel-2', 'kapitel-3', 'kapitel-4', 'kapitel-5'];
   readonly behavior = signal<ScrollBehavior>('instant');
   readonly offset = signal(0);
+  readonly bottomOffset = signal(0);
+  readonly activationThreshold = signal(0);
+  readonly showOverlay = signal(false);
   readonly visibility = signal<VisibilityMode>('none');
   readonly debounceTime = signal(500);
   readonly onlyPrefixed = signal(true);
@@ -53,6 +68,8 @@ export class DocumentExample {
   readonly options = computed(() => ({
     behavior: { interaction: this.behavior() },
     headerOffset: this.offset(),
+    bottomOffset: this.bottomOffset(),
+    activationThreshold: this.activationThreshold(),
     ignoreWhenInView: this.visibility(),
     debounceTime: this.debounceTime(),
     anchorPrefix: this.onlyPrefixed() ? undefined : '',
@@ -66,7 +83,7 @@ export class DocumentExample {
 }
 
 @Component({
-  imports: [RouterLink, ScrollOptionsPanel, MagicScrollDirective],
+  imports: [RouterLink, ScrollOptionsPanel, ActiveZoneOverlay, MagicScrollDirective],
   providers: [provideMagicScroll({ anchorPrefix: 'eintrag-' })],
   template: `<h1>Navigation · Restore position</h1>
     <p>
@@ -76,6 +93,9 @@ export class DocumentExample {
     <app-scroll-options
       [behavior]="behavior()"
       [offset]="offset()"
+      [(bottomOffset)]="bottomOffset"
+      [(activationThreshold)]="activationThreshold"
+      [(overlay)]="showOverlay"
       (behaviorChange)="setOptions($event, offset())"
       (offsetChange)="setOptions(behavior(), $event)"
     />
@@ -102,7 +122,15 @@ export class DocumentExample {
       >
       <button (click)="resource.reload()">Reload list</button>
     </details>
-    <div class="viewport">
+    <div class="viewport" #viewport>
+      @if (showOverlay()) {
+        <app-active-zone-overlay
+          [target]="viewport"
+          [headerOffset]="offset()"
+          [bottomOffset]="bottomOffset()"
+          [activationThreshold]="activationThreshold()"
+        />
+      }
       <div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
         @if (resource.isLoading()) {
           <p role="status">Loading…</p>
@@ -135,6 +163,9 @@ export class NavigationExample {
         : 'instant',
   );
   readonly offset = signal(Number(this.route.snapshot.queryParamMap.get('offset')) || 0);
+  readonly bottomOffset = signal(0);
+  readonly activationThreshold = signal(0);
+  readonly showOverlay = signal(false);
   setOptions(behavior: ScrollBehavior, offset: number) {
     this.behavior.set(behavior);
     this.offset.set(offset);
@@ -165,6 +196,8 @@ export class NavigationExample {
   readonly options = computed(() => ({
     behavior: { restoration: this.behavior(), interaction: this.behavior() },
     headerOffset: this.offset(),
+    bottomOffset: this.bottomOffset(),
+    activationThreshold: this.activationThreshold(),
   }));
 }
 
@@ -186,14 +219,26 @@ export class DetailExample {
 }
 
 @Component({
-  imports: [MatSidenavModule, RouterLink, ScrollOptionsPanel, MagicScrollDirective],
+  imports: [
+    MatSidenavModule,
+    RouterLink,
+    ScrollOptionsPanel,
+    ActiveZoneOverlay,
+    MagicScrollDirective,
+  ],
   providers: [provideMagicScroll({ anchorPrefix: 'antrag-card-' })],
   styles: ['mat-drawer-content { overflow-anchor: none; }'],
   template: `<h1>Application overview · Material Drawer</h1>
     <p>
       Inspired by AntraegeUebersichtContainer: asynchronous cards, pagination and detail navigation.
     </p>
-    <app-scroll-options [(behavior)]="behavior" [(offset)]="offset" />
+    <app-scroll-options
+      [(behavior)]="behavior"
+      [(offset)]="offset"
+      [(bottomOffset)]="bottomOffset"
+      [(activationThreshold)]="activationThreshold"
+      [(overlay)]="showOverlay"
+    />
     <label
       ><input
         type="checkbox"
@@ -213,8 +258,16 @@ export class DetailExample {
           }
         </nav></mat-drawer
       >
-      <mat-drawer-content
-        ><div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
+      <mat-drawer-content #drawerContent>
+        @if (showOverlay()) {
+          <app-active-zone-overlay
+            [target]="drawerContentElement()"
+            [headerOffset]="offset()"
+            [bottomOffset]="bottomOffset()"
+            [activationThreshold]="activationThreshold()"
+          />
+        }
+        <div magicScroll [scrollSource]="resource" [scrollOptions]="options()">
           @if (resource.isLoading()) {
             <p role="status">Loading applications…</p>
           }
@@ -238,6 +291,9 @@ export class DetailExample {
 export class DrawerExample {
   readonly behavior = signal<ScrollBehavior>('instant');
   readonly offset = signal(0);
+  readonly bottomOffset = signal(0);
+  readonly activationThreshold = signal(0);
+  readonly showOverlay = signal(false);
   readonly restoreChanges = signal(true);
   readonly prepend = signal(0);
   readonly addThree = (count: number) => count + 3;
@@ -265,9 +321,15 @@ export class DrawerExample {
       ]).pipe(delay(150)),
   });
   private readonly scroll = viewChild.required(MagicScrollDirective);
+  private readonly drawerContent = viewChild(MatDrawerContent, { read: ElementRef });
+  readonly drawerContentElement = computed<HTMLElement | null>(
+    () => this.drawerContent()?.nativeElement ?? null,
+  );
   readonly options = computed(() => ({
     behavior: { restoration: this.behavior(), interaction: this.behavior() },
     headerOffset: this.offset(),
+    bottomOffset: this.bottomOffset(),
+    activationThreshold: this.activationThreshold(),
     restoreOnDataChange: this.restoreChanges(),
   }));
   jump(id: number) {
