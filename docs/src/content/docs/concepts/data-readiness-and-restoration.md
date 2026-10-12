@@ -41,7 +41,13 @@ For signal forms, use the field's value signal, such as `form().value`, rather t
 
 Initial restoration is attempted once per directive instance. If the fragment is absent or its target is missing or ineligible at the first ready render, the attempt does not scroll or rewrite the URL. It is not automatically retried as initial restoration when that target appears later.
 
-Later ready source changes can still trigger position preservation using the current fragment. That is a separate behavior, described in [Position preservation and layout changes](../position-preservation/), and should not be used as a strategy for loading a missing initial target.
+### Intervening user interaction cancels restoration
+
+If the user interacts with the page or scroll container before data readiness arrives—such as scrolling via mouse wheel, touch gestures, or navigation keys (`ArrowUp`, `ArrowDown`, `PageUp`, `PageDown`, `Space`, `Home`, `End`)—the pending initial restoration is cancelled. This prevents delayed data loading from abruptly overriding the user's conscious navigation.
+
+Typing inside editable form controls (`input`, `textarea`, `select`, or `contenteditable` elements) is safely ignored and does not cancel restoration. Subsequent explicit navigation using `scrollTo()` continues to function normally without restriction.
+
+Later ready source changes can still trigger position preservation using the current active section. That is a separate behavior, described in [Position preservation and layout changes](../position-preservation/), and should not be used as a strategy for loading a missing initial target.
 
 An explicit `scrollTo()` call also requires an existing target. It does not wait for `scrollSource` to become ready.
 

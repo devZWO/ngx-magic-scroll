@@ -56,6 +56,7 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 ## Unit Tests
 
 - Use vitest
+- Maintain 100% test coverage across all unit tests
 - Test edge cases and error handling
 - Use mock data and dependencies where necessary
 - Keep tests fast and isolated

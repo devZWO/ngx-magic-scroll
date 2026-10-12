@@ -24,22 +24,84 @@ import {
 } from './magic-scroll-options';
 import { NO_SCROLL_SOURCE, readScrollSource, ScrollSource } from './scroll-source';
 
-/** Per-action overrides; the facade always chooses and scopes the scroll container. */
+/**
+ * Per-action scroll options for programmatic navigation via {@link MagicScrollDirective.scrollTo}.
+ * Top offsets and container scoping are resolved automatically by the directive facade.
+ */
 export type MagicScrollToOptions = Pick<
   ScrollOptions,
   'behavior' | 'topOffset' | 'ignoreWhenInView'
 >;
 
 /**
- * Anchor scrolling, URL sync, initial restoration and layout preservation in one directive.
- * Without scrollSource the initial rendered DOM is restored once (e.g. resolver data).
- * With a source, restoration waits for ready data and later updates preserve the current anchor.
+ * Standard keyboard navigation keys that manipulate viewport scroll position.
+ * Used by {@link MagicScrollDirective} to detect manual user scroll intent and cancel
+ * pending automatic initial restorations prior to asynchronous data loading readiness.
+ */
+const SCROLL_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' ',
+  'Spacebar',
+  'Space',
+]);
+
+/**
+ * Determines whether a keyboard event target is an interactive or editable text control.
+ * Ensures typing and navigating within input fields, textareas, dropdowns, and contenteditable
+ * areas do not mistakenly cancel pending initial scroll restoration.
+ */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof Element)) return false;
+  const tagName = target.tagName.toLowerCase();
+  if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return true;
+  const editableHost = target.closest('[contenteditable]');
+  const editableValue = editableHost?.getAttribute('contenteditable')?.toLowerCase();
+  return Boolean(
+    (target as HTMLElement).isContentEditable ||
+    target.closest('input, textarea, select') ||
+    editableValue === '' ||
+    editableValue === 'true' ||
+    editableValue === 'plaintext-only',
+  );
+}
+
+/**
+ * Complete facade directive coordinating anchor scrolling, two-tier route synchronization,
+ * user-intent cancellation, data readiness restoration, and layout/data position preservation.
+ *
+ * @remarks
+ * ### Architectural Pillars:
+ * 1. **Two-Tier Anchor State Model**:
+ *    - `liveAnchor`: Immediate per-scroll evaluation representing the visible section currently in view.
+ *      Used as the source of truth for immediate data and layout realignments.
+ *    - `fragment` / `activeAnchor`: Debounced (default 500ms) URL router synchronization preventing browser
+ *      history thrashing during continuous scrolling.
+ * 2. **User Intent Detection & Cancellation**:
+ *    - Captures manual user gestures (`wheel`, `touchstart`, `touchmove`, navigation `keydown`) occurring prior
+ *      to asynchronous `scrollSource` readiness.
+ *    - Invalidates pending delayed initial restorations so conscious user navigation is never overridden.
+ *    - Safely excludes editable form controls (`<input>`, `<textarea>`, `contenteditable`).
+ * 3. **Reactive Render Pipeline & Lifecycle Coordination**:
+ *    - Sequenced `afterRenderEffect` execution blocks guarantee sticky header measurement and `ResizeObserver`
+ *      monitoring are active before initial fragment restoration and data preservation execute.
+ * 4. **Preservation & Realignment Engine**:
+ *    - Automatic realignments (`preserve('top')`) on data updates and container/header resizes based on the live active section.
+ * 5. **Container & Anchor Scoping**:
+ *    - Automatic scroll container resolution (window vs scrollable element) and hierarchical anchor ownership isolation.
  *
  * @example
+ * ```html
  * <div magicScroll #scroll="magicScroll" [scrollSource]="projects">
  *   <section id="project-1">...</section>
+ *   <section id="project-2">...</section>
  * </div>
- * <button (click)="scroll.scrollTo('project-1')">Project 1</button>
+ * <button (click)="scroll.scrollTo('project-2')">Go to Project 2</button>
+ * ```
  */
 @Directive({
   selector: '[magicScroll]',
@@ -48,11 +110,20 @@ export type MagicScrollToOptions = Pick<
   host: { '[attr.magicScroll]': '""' },
 })
 export class MagicScrollDirective {
+  /**
+   * Asynchronous data source or signal determining scroll readiness.
+   * - When omitted (`NO_SCROLL_SOURCE`), initial restoration executes on the initial rendered DOM.
+   * - When provided, initial restoration waits until `readScrollSource(source).ready === true`.
+   *   Subsequent ready data updates trigger automatic position preservation when `restoreOnDataChange` is enabled.
+   */
   readonly scrollSource = input<ScrollSource | typeof NO_SCROLL_SOURCE, ScrollSource>(
     NO_SCROLL_SOURCE,
     { transform: (value) => value },
   );
+
+  /** Configuration overrides merged with global `provideMagicScroll` options. */
   readonly scrollOptions = input<MagicScrollOptions>({});
+
   private readonly defaults = inject(MAGIC_SCROLL_OPTIONS);
   private readonly options = computed(() =>
     resolveMagicScrollOptions(this.defaults, this.scrollOptions()),
@@ -61,17 +132,44 @@ export class MagicScrollDirective {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly service = inject(ScrollService);
   private readonly nearest = inject(NearestAnchorProvider);
+
+  /** Bidirectional route fragment synchronization signal (debounced URL writer and listener). */
   private readonly fragment = linkedRouteFragment();
+
+  /** Initial route URL fragment snapshot captured upon directive instantiation. */
   private readonly initialAnchor = inject(ActivatedRoute).snapshot.fragment;
+
+  /** Dynamically measured header height via ResizeObserver. */
   private readonly measuredHeaderHeight = signal(0);
+
+  /**
+   * Real-time visible section identifier updated per scroll event.
+   * Serves as the source of truth for immediate data and layout realignments (`preserve`),
+   * decoupling preservation from the debounced URL fragment signal.
+   */
+  private readonly liveAnchor = signal<string | null | undefined>(null);
+
   /** Current URL anchor, suitable for active-navigation highlighting. */
   readonly activeAnchor = this.fragment.asReadonly();
+
   /** Measured header height, useful for sticky companion panels. */
   readonly headerHeight = this.measuredHeaderHeight.asReadonly();
+
   /** Complete effective top offset, including header height and configured gap. */
   readonly offset = computed(() => this.headerHeight() + this.options().headerOffset);
+
+  /** Monotonically increasing revision counter triggering debounced URL fragment updates. */
   private readonly scrollRevision = signal(0);
+
+  /** Flag indicating whether the initial restoration phase has been executed. */
   private initialized = false;
+
+  /**
+   * Flag indicating whether manual user interaction (wheel, touch, or navigation keys) occurred
+   * before asynchronous data loading became ready. When true, delayed initial restoration is skipped.
+   */
+  private userInterrupted = false;
+
   private target?: EventTarget;
   private timer?: ReturnType<typeof setTimeout>;
 
@@ -79,15 +177,16 @@ export class MagicScrollDirective {
     const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
       this.refreshTarget();
-      this.document.defaultView!.addEventListener('resize', this.onResize);
+      this.document.defaultView?.addEventListener('resize', this.onResize);
     });
     destroyRef.onDestroy(() => {
-      this.target?.removeEventListener('scroll', this.onScroll);
+      this.detachListeners();
       this.document.defaultView?.removeEventListener('resize', this.onResize);
       clearTimeout(this.timer);
     });
 
-    // Registration order ensures header measurement precedes initial restoration.
+    // Phase 1: Header measurement & ResizeObserver tracking.
+    // Sequenced first so accurate header dimensions and offsets are available before initial restoration.
     afterRenderEffect((onCleanup) => {
       const selector = this.options().headerSelector;
       const header = selector ? this.document.querySelector<HTMLElement>(selector) : null;
@@ -105,6 +204,9 @@ export class MagicScrollDirective {
         onCleanup(() => observer.disconnect());
       }
     });
+
+    // Phase 2: Asynchronous scrollSource readiness, initial restoration, and data-change preservation.
+    // Untracked execution guarantees execution triggers strictly on scrollSource readiness transitions.
     afterRenderEffect(() => {
       const source = this.scrollSource();
       const state = readScrollSource(source);
@@ -112,37 +214,68 @@ export class MagicScrollDirective {
       untracked(() => {
         if (!this.initialized) {
           this.initialized = true;
-          this.execute(this.initialAnchor, { behavior: this.options().behavior.restoration });
+          if (!this.userInterrupted) {
+            this.execute(this.initialAnchor, { behavior: this.options().behavior.restoration });
+          } else {
+            this.liveAnchor.set(this.calculateNearestAnchor() ?? null);
+          }
         } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
           this.preserve('top');
         }
       });
     });
+
+    // Phase 3: Route fragment synchronization to liveAnchor.
+    // When the route fragment changes externally (e.g., router navigation), synchronize liveAnchor.
+    effect(() => {
+      const frag = this.fragment();
+      untracked(() => {
+        this.liveAnchor.set(frag);
+      });
+    });
+
+    // Phase 4: Scroll revision debounced publication to URL fragment.
+    // Re-evaluates nearest anchor and commits it to the URL router after debounce delay.
     effect(() => {
       if (!this.scrollRevision()) return;
-      const anchor = this.nearest.getNearestAnchor({
-        hostElement: this.host,
-        anchors: this.anchors(),
-        scrollable: this.scrollable(),
-        headerOffset: this.offset(),
-        bottomOffset: this.options().bottomOffset,
-        activationThreshold: this.options().activationThreshold,
-      });
+      const anchor = this.calculateNearestAnchor();
       if (anchor) this.fragment.set(anchor);
     });
   }
 
-  /** Explicit user navigation. Per-call options override region and provider defaults. */
+  /**
+   * Explicitly scrolls the viewport to the target anchor identifier.
+   *
+   * @param anchor - Target anchor ID (with or without leading `#`).
+   * @param options - Per-call scroll overrides (behavior, top offset, ignoreWhenInView).
+   * @returns `true` if the target anchor was found and scrolling initiated; `false` otherwise.
+   *
+   * @remarks
+   * Successful execution immediately synchronizes both `liveAnchor` and the router `fragment`
+   * with the target anchor, overriding any in-flight debounce delays.
+   */
   scrollTo(anchor: string, options: MagicScrollToOptions = {}): boolean {
     const executed = this.execute(anchor, {
       behavior: this.options().behavior.interaction,
       ignoreWhenInView: this.options().ignoreWhenInView,
       ...options,
     });
-    if (executed) this.fragment.set(anchor.replace(/^#/, ''));
+    if (executed) {
+      const clean = anchor.replace(/^#/, '');
+      this.liveAnchor.set(clean);
+      this.fragment.set(clean);
+    }
     return executed;
   }
 
+  /**
+   * Queries and returns all eligible scroll anchor elements belonging strictly to this directive instance.
+   *
+   * @remarks
+   * Anchors must possess a non-empty `id` and either match the configured `anchorPrefix` or contain
+   * the `data-scroll-anchor` attribute. The `closest('[magicScroll]') === this.host` check prevents
+   * nested or parent `magicScroll` directive instances from capturing child anchors across boundaries.
+   */
   private anchors(): HTMLElement[] {
     const prefix = this.options().anchorPrefix;
     return Array.from(this.host.querySelectorAll<HTMLElement>('[id]')).filter(
@@ -153,6 +286,11 @@ export class MagicScrollDirective {
     );
   }
 
+  /**
+   * Resolves the active scroll container element governing viewport offsets.
+   *
+   * @returns The scrollable container `HTMLElement`, or `undefined` when scrolling against the document root / window.
+   */
   private scrollable(): HTMLElement | undefined {
     const overflow = getComputedStyle(this.host).overflowY;
     const container =
@@ -165,6 +303,24 @@ export class MagicScrollDirective {
       : container;
   }
 
+  /**
+   * Computes the nearest visible anchor according to current viewport geometry, header offsets,
+   * bottom offsets, and reading direction thresholds.
+   */
+  private calculateNearestAnchor(): string | undefined {
+    return this.nearest.getNearestAnchor({
+      hostElement: this.host,
+      anchors: this.anchors(),
+      scrollable: this.scrollable(),
+      headerOffset: this.offset(),
+      bottomOffset: this.options().bottomOffset,
+      activationThreshold: this.options().activationThreshold,
+    });
+  }
+
+  /**
+   * Dispatches scrolling to the underlying {@link ScrollService} after validating target presence.
+   */
   private execute(anchor: string | null | undefined, options: MagicScrollToOptions): boolean {
     if (!anchor || !this.anchors().some((el) => el.id === anchor.replace(/^#/, ''))) return false;
     return this.service.scroll(anchor, {
@@ -174,21 +330,96 @@ export class MagicScrollDirective {
     });
   }
 
+  /**
+   * Realigns the viewport instantly to preserve position during asynchronous data updates
+   * or container / header dimension changes.
+   *
+   * @remarks
+   * Targets `liveAnchor` (the real-time visible section) rather than `fragment` (the debounced URL fragment)
+   * to ensure rapid data or layout shifts during continuous scrolling maintain the user's active view
+   * rather than jumping back to a stale URL anchor.
+   */
   private preserve(ignoreWhenInView: ScrollOptions['ignoreWhenInView'] = 'none'): void {
-    if (this.initialized) this.execute(this.fragment(), { behavior: 'instant', ignoreWhenInView });
-  }
-
-  private refreshTarget(): void {
-    const target = this.scrollable() ?? this.document;
-    if (target !== this.target) {
-      this.target?.removeEventListener('scroll', this.onScroll);
-      this.target = target;
-      target.addEventListener('scroll', this.onScroll);
+    if (this.initialized) {
+      this.execute(this.liveAnchor(), { behavior: 'instant', ignoreWhenInView });
     }
   }
 
+  /**
+   * Updates target container references and re-binds passive event listeners whenever
+   * the scroll container shifts dynamically.
+   */
+  private refreshTarget(): void {
+    const target = this.scrollable() ?? this.document;
+    if (target !== this.target) {
+      this.detachListeners();
+      this.target = target;
+      this.attachListeners(target);
+    }
+  }
+
+  /**
+   * Attaches passive scroll, gesture, and keyboard listeners to track user intent and scroll motion.
+   */
+  private attachListeners(target: EventTarget): void {
+    target.addEventListener('scroll', this.onScroll);
+    target.addEventListener('wheel', this.onUserIntent, { passive: true });
+    target.addEventListener('touchstart', this.onUserIntent, { passive: true });
+    target.addEventListener('touchmove', this.onUserIntent, { passive: true });
+    target.addEventListener('keydown', this.onKeyDown);
+    this.document.addEventListener('keydown', this.onKeyDown);
+  }
+
+  /**
+   * Detaches all registered event listeners to ensure clean teardown without memory leaks.
+   */
+  private detachListeners(): void {
+    if (!this.target) return;
+    this.target.removeEventListener('scroll', this.onScroll);
+    this.target.removeEventListener('wheel', this.onUserIntent);
+    this.target.removeEventListener('touchstart', this.onUserIntent);
+    this.target.removeEventListener('touchmove', this.onUserIntent);
+    this.target.removeEventListener('keydown', this.onKeyDown);
+    this.document.removeEventListener('keydown', this.onKeyDown);
+  }
+
+  /**
+   * Intercepts manual user gestures (`wheel`, `touchstart`, `touchmove`) to flag user interaction
+   * and cancel delayed initial restorations prior to data readiness.
+   */
+  private readonly onUserIntent = () => {
+    this.userInterrupted = true;
+  };
+
+  /**
+   * Intercepts navigation keyboard events (`ArrowUp`, `ArrowDown`, `PageUp`, `PageDown`, `Home`, `End`, `Space`).
+   * Cancels pending initial restoration when navigation occurs within the relevant scroll context
+   * while safely ignoring interactions on editable input elements.
+   */
+  private readonly onKeyDown = (event: Event) => {
+    if (!(event instanceof KeyboardEvent)) return;
+    if (isEditableTarget(event.target)) return;
+    if (!SCROLL_KEYS.has(event.key)) return;
+    const targetEl = event.target as Element | null;
+    const scrollable = this.scrollable();
+    const isInsideContext =
+      !targetEl ||
+      targetEl === this.document.body ||
+      targetEl === this.document.documentElement ||
+      (scrollable ? scrollable === targetEl || scrollable.contains(targetEl) : true);
+    if (isInsideContext) {
+      this.userInterrupted = true;
+    }
+  };
+
+  /**
+   * Handles scroll events by immediately updating `liveAnchor` for position preservation,
+   * while debouncing `scrollRevision` increments to update the browser URL fragment without thrashing history.
+   */
   private readonly onScroll = () => {
     if (!this.initialized) return;
+    const anchor = this.calculateNearestAnchor();
+    if (anchor) this.liveAnchor.set(anchor);
     clearTimeout(this.timer);
     this.timer = setTimeout(
       () => this.scrollRevision.update((revision) => revision + 1),
@@ -196,6 +427,9 @@ export class MagicScrollDirective {
     );
   };
 
+  /**
+   * Handles window resize events by re-evaluating targets and optionally realigning the active anchor.
+   */
   private readonly onResize = () => {
     this.refreshTarget();
     if (this.options().preserveOnResize) this.preserve();

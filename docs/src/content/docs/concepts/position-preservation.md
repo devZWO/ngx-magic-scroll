@@ -11,14 +11,18 @@ After initial restoration, content and layout can still move. Position preservat
 
 | Cause                                          | Target                                        | Default behavior                                                |
 | ---------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
-| Initial ready render                           | Fragment captured when the region was created | Restore once, instantly                                         |
+| Initial ready render                           | Fragment captured when the region was created | Restore once, instantly (unless user cancelled via interaction) |
 | Explicit `scrollTo()`                          | Requested anchor                              | Scroll smoothly                                                 |
-| Later ready source change                      | Current fragment                              | Correct instantly if the target's top edge is no longer visible |
-| Window resize or measured header-height change | Current fragment                              | Realign instantly, even if the target is already visible        |
+| Later ready source change                      | Current live visible section                  | Correct instantly if the target's top edge is no longer visible |
+| Window resize or measured header-height change | Current live visible section                  | Realign instantly, even if the target is already visible        |
 
-The distinction between the initial and current fragment matters. A page can initially restore project 12, then record project 18 as the user scrolls. A subsequent data change preserves project 18 rather than returning to project 12.
+The distinction between the initial fragment, live visible section, and published URL fragment matters. A page can initially restore project 12, then record project 18 as the user scrolls. A subsequent data change preserves project 18 rather than returning to project 12.
 
-Data corrections require a supplied source and are enabled by `restoreOnDataChange`. Layout corrections are enabled by `preserveOnResize`. They only run after initial readiness and require the current fragment to identify an eligible, rendered target.
+### Live section tracking vs URL debouncing
+
+While scrolling, the active visible section geometry is tracked in real time, whereas updates to the browser's URL fragment are debounced by `debounceTime` (default 500ms) to avoid cluttering browser history during continuous motion. When automatic realignment or data updates occur during this debounce interval, `ngx-magic-scroll` preserves the real-time visible section rather than falling back to the stale debounced URL fragment.
+
+Data corrections require a supplied source and are enabled by `restoreOnDataChange`. Layout corrections are enabled by `preserveOnResize`. They only run after initial readiness and require the current live section to identify an eligible, rendered target.
 
 ## Preservation follows the anchor
 
