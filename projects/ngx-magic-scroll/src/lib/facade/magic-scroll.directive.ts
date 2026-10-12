@@ -66,7 +66,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
     target.closest('input, textarea, select') ||
     editableValue === '' ||
     editableValue === 'true' ||
-    editableValue === 'plaintext-only'
+    editableValue === 'plaintext-only',
   );
 }
 

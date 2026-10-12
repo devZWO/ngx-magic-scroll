@@ -771,3 +771,17 @@ it('allows explicit scrollTo after user cancellation without inhibition', () => 
   expect(host.scroll().scrollTo('item-1')).toBe(true);
   expect(scroll.scroll).toHaveBeenLastCalledWith('item-1', expect.anything());
 });
+
+it('sets liveAnchor to null on user interruption when no nearest anchor is found during initialization', () => {
+  const { host, container, region, render, scroll } = setup('item-2');
+  for (const el of region.querySelectorAll<HTMLElement>('[id], [data-scroll-anchor]')) {
+    el.removeAttribute('id');
+    el.removeAttribute('data-scroll-anchor');
+  }
+  container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
