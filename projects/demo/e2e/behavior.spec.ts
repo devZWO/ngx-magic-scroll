@@ -115,7 +115,7 @@ test('prefix filtering excludes a closer intermediate anchor and can be disabled
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
   await placeAnchor(page, '#zwischen-kapitel-3', '.viewport', 0);
-  await expect(page).toHaveURL(/#kapitel-3$/);
+  await expect(page).toHaveURL(/#kapitel-4$/);
   await page.getByLabel('Only consider chapter anchors').uncheck();
   await expect(page).toHaveURL(/#zwischen-kapitel-3$/);
 });
@@ -419,46 +419,27 @@ test('reading within a section taller than the viewport keeps that section activ
   );
 });
 
-test('reading within a container section keeps that section active when heading leaves viewport until the next heading crosses top', async ({
+test('container scrolling activates fully visible sections and retains active reading state when tall', async ({
   page,
 }) => {
   await page.goto('/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
 
-  // Scroll viewport down into kapitel-1 so its heading is above top (< 0)
-  await page.locator('.viewport').evaluate((el) => {
-    el.scrollTop = 150;
-    el.dispatchEvent(new Event('scroll'));
+  // Place kapitel-2 inside viewport so it is fully visible below the top edge
+  await placeAnchor(page, '#kapitel-2', '.viewport', 40);
+
+  // kapitel-2 is fully contained within the visible container area
+  await expect(page).toHaveURL(/#kapitel-2$/);
+  await expect(page.locator('output')).toHaveText('kapitel-2');
+
+  // When sections inside the container are tall (taller than container height), reading fallback keeps section active
+  await page.locator('#kapitel-2').evaluate((el) => {
+    (el as HTMLElement).style.minHeight = '600px';
   });
+  await placeAnchor(page, '#kapitel-2', '.viewport', -100);
 
-  await expect
-    .poll(() =>
-      page.locator('#kapitel-1').evaluate((el) => {
-        const viewportTop = document.querySelector('.viewport')!.getBoundingClientRect().top;
-        return el.getBoundingClientRect().top - viewportTop;
-      }),
-    )
-    .toBeLessThan(0);
-  await expect
-    .poll(() =>
-      page.locator('#kapitel-2').evaluate((el) => {
-        const viewportTop = document.querySelector('.viewport')!.getBoundingClientRect().top;
-        return el.getBoundingClientRect().top - viewportTop;
-      }),
-    )
-    .toBeGreaterThan(50);
-
-  // Active anchor and URL MUST remain kapitel-1
-  await expect(page).toHaveURL(/#kapitel-1$/);
-  await expect(page.locator('output')).toHaveText('kapitel-1');
-
-  // Scroll down so kapitel-2 crosses the top edge
-  await page.locator('.viewport').evaluate((el) => {
-    el.scrollTop = 350;
-    el.dispatchEvent(new Event('scroll'));
-  });
-
+  // kapitel-2 heading is scrolled past container top, but kapitel-3 is still below container bottom
   await expect(page).toHaveURL(/#kapitel-2$/);
   await expect(page.locator('output')).toHaveText('kapitel-2');
 });

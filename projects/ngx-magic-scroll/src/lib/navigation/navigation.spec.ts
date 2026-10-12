@@ -114,25 +114,99 @@ it('selects visible anchors with defaults, prefixes, header offsets and containe
   TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   const provider = TestBed.inject(NearestAnchorProvider);
   expect(provider.getNearestAnchor()).toBeUndefined();
-  const a = element('a', 80),
-    b = element('b', 40),
-    c = element('c', -10);
-  expect(provider.getNearestAnchor()).toBe('c');
-  element('far', 200);
-  expect(provider.getNearestAnchor()).toBe('c');
-  expect(provider.getNearestAnchor({ headerOffset: 60 })).toBe('b');
+  const a = element('a', 80, 110),
+    b = element('b', 40, 70),
+    c = element('c', -10, 20);
+  // Under hybrid model, b and a are fully contained in [0, 768]; topmost is b
+  expect(provider.getNearestAnchor()).toBe('b');
+  element('far', 200, 230);
+  expect(provider.getNearestAnchor()).toBe('b');
+  // With headerOffset: 60, topBoundary is 60. b (40..70) is obscured/not fully contained. a (80..110) is fully contained.
+  expect(provider.getNearestAnchor({ headerOffset: 60 })).toBe('a');
   element('header', 0, 50);
+  // With header 50px, boundary is 50. a (80..110) is fully contained and selected.
   expect(
     provider.getNearestAnchor({ selector: '[id="a"], [id="b"]', headerSelector: '#header' }),
-  ).toBe('b');
-  const container = element('container', 100);
+  ).toBe('a');
+  const container = element('container', 100, 400);
   container.style.overflowY = 'auto';
   const host = document.createElement('div');
   container.append(host);
   host.append(a, b, c);
+  // In container [100, 400]: a (80..110), b (40..70), c (-10..20) are none fully contained. Reading line picks a (top 80 <= 100).
   expect(provider.getNearestAnchor({ hostElement: host })).toBe('a');
-  a.getBoundingClientRect = () => rect(110);
-  expect(provider.getNearestAnchor({ hostElement: host })).toBe('b');
+  // Move a to 110..140: a is now fully contained in container [100, 400].
+  a.getBoundingClientRect = () => rect(110, 140);
+  expect(provider.getNearestAnchor({ hostElement: host })).toBe('a');
+});
+
+it('prioritizes fully contained sections over partially visible preceding sections (full containment elevation)', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  // sec1 is partially scrolled past top (tail is visible [0..100])
+  // sec2 is 100% visible inside viewport [0..768] (top 120, bottom 320)
+  element('sec-1', -300, 100);
+  element('sec-2', 120, 320);
+
+  expect(provider.getNearestAnchor()).toBe('sec-2');
+});
+
+it('selects the topmost fully contained section when multiple sections are completely visible', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  element('sec-1', -200, 50); // partially above
+  element('sec-2', 80, 200); // fully contained
+  element('sec-3', 250, 400); // fully contained
+  element('sec-4', 450, 600); // fully contained
+
+  // Among sec-2, sec-3, sec-4 (all fully contained), sec-2 has smallest top
+  expect(provider.getNearestAnchor()).toBe('sec-2');
+});
+
+it('falls back to reading-line position when no section is fully contained (tall sections exceeding viewport)', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  // Both sections are taller than viewport (height 1400 > 768)
+  element('sec-1', -400, 1000);
+  element('sec-2', 1000, 2400);
+
+  // sec1 crosses reading line (top -400 <= 0 + 1) and neither is fully contained
+  expect(provider.getNearestAnchor()).toBe('sec-1');
+});
+
+it('respects sticky headers and offsets when evaluating full containment', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  element('header', 0, 80); // 80px sticky header
+  element('sec-1', 40, 140); // top 40 is behind header (< 80 + 20 offset)
+  element('sec-2', 110, 250); // top 110, bottom 250 -> fully contained below header
+
+  expect(
+    provider.getNearestAnchor({
+      headerSelector: '#header',
+      headerOffset: 20,
+    }),
+  ).toBe('sec-2');
+});
+
+it('evaluates full containment within scrollable container boundaries', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  const container = element('container', 100, 500);
+  container.style.overflowY = 'auto';
+  const host = document.createElement('div');
+  container.append(host);
+
+  const sec1 = element('sec-1', 50, 180); // top 50 < container top 100 (partially above)
+  const sec2 = element('sec-2', 150, 300); // fully contained in [100, 500]
+  host.append(sec1, sec2);
+
+  expect(provider.getNearestAnchor({ hostElement: host })).toBe('sec-2');
 });
 
 it('keeps the active section while scrolling through a long section until the next section crosses the activation boundary', () => {

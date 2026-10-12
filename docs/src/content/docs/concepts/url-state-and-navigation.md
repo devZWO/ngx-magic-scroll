@@ -9,15 +9,20 @@ The route fragment is the shared anchor identifier used by scroll tracking, expl
 
 ## Scrolling records an anchor
 
-After scrolling settles, the region determines which section the user is currently reading based on the activation boundary:
+After scrolling settles, the region determines which section the user is currently reading based on an evaluated visible reading area and a hybrid evaluation model:
 
-`boundary = containerTop + headerHeight + headerOffset`
+- **Top boundary (`topBoundary`)**: `containerTop + headerHeight + headerOffset`
+  - For document scrolling, `containerTop` is `0`.
+  - For nested scrollable containers (`overflow: auto | scroll`), `containerTop` is the container's top edge (`getBoundingClientRect().top`).
+  - With `headerSelector`, sticky header height is measured and added dynamically.
+  - With `headerOffset`, custom pixel padding or trigger line offsets are included.
+- **Bottom boundary (`bottomBoundary`)**: `window.innerHeight` for document scrolling, or `container.getBoundingClientRect().bottom` for scrollable containers.
 
-1. **Top boundary reference**: For document scrolling, `containerTop` is `0`. For nested scrollable containers (`overflow: auto | scroll`), `containerTop` is the container's top edge (`getBoundingClientRect().top`).
-2. **Sticky or fixed headers**: With `headerSelector`, the measured height of any sticky header is added so content obscured beneath the header does not trigger premature activation.
-3. **Offset spacing**: With `headerOffset`, custom pixel padding or trigger line offsets can be configured.
+### Evaluation Priority
 
-An anchor becomes active as soon as its top edge reaches or crosses the activation boundary (`top <= boundary`). When scrolling through tall or multi-paragraph sections, that section **remains active** while being read, even after its heading has scrolled past the top boundary, until the next section reaches the activation boundary. When scrolling backwards (upwards), as soon as a section heading drops back below the boundary, the preceding section becomes active again. When scrolled above all anchors, the first anchor is selected.
+1. **Fully Contained Sections (Full Containment Elevation)**: If an upcoming section is 100% visible within the reading area (`top >= topBoundary - 1` and `bottom <= bottomBoundary + 1`), it becomes active immediately—even if a small tail of the previous section is still visible at the top. If multiple sections are fully visible, the topmost fully contained section is selected.
+2. **Tall Section Reading Retention (Reading Line Fallback)**: For sections that are taller than the viewport (or long multi-paragraph articles), the section remains active while scrolling through its body (`top <= topBoundary + 1`) until a subsequent section crosses the top activation boundary or becomes fully visible.
+3. **Top of Page Fallback**: When scrolled above all anchors, the first anchor is selected.
 
 Scroll-spy updates are debounced by 500 ms by default (`debounceTime`). During continuous movement, the fragment can therefore lag behind the viewport until scrolling pauses. If there are no eligible candidates, the existing fragment remains unchanged.
 

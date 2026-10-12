@@ -17,10 +17,12 @@ Restoration returns to an anchor's position with the configured top offset. It d
 
 ## Configuring activation boundaries and scroll offsets
 
-`magicScroll` computes both scroll alignment and active section detection using the top offset:
+`magicScroll` computes both scroll alignment and active section detection using layout and offset configuration:
 
 - **`headerOffset`**: Static spacing in pixels (e.g. `headerOffset: 24`), adding visual breathing room above section headings.
-- **`headerSelector`**: CSS selector for a fixed or sticky navigation bar (e.g. `headerSelector: '.app-header'`). Its dynamically measured height is automatically added to the offset so obscured elements do not trigger activation or get covered during scroll restoration.
+- **`headerSelector`**: CSS selector for a fixed or sticky navigation bar (e.g. `headerSelector: '.app-header'`). Its dynamically measured height is automatically added to the boundary offset so obscured elements do not trigger activation or get covered during scroll restoration.
+
+Active section detection evaluates elements within the visible reading area between the effective top boundary (`containerTop + headerHeight + headerOffset`) and bottom boundary (`containerBottom` or viewport bottom), prioritizing fully visible sections before falling back to reading-position tracking for tall content.
 
 ## A region selects its anchors
 
