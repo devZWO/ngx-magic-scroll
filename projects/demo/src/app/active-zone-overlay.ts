@@ -168,8 +168,8 @@ export class ActiveZoneOverlay {
   }>({
     top: 0,
     left: 0,
-    width: typeof window !== 'undefined' ? window.innerWidth : 0,
-    height: typeof window !== 'undefined' ? window.innerHeight : 0,
+    width: this.document.defaultView?.innerWidth ?? 0,
+    height: this.document.defaultView?.innerHeight ?? 0,
     headerHeight: 0,
   });
 
@@ -224,8 +224,9 @@ export class ActiveZoneOverlay {
         this.updateGeometry();
       };
 
-      window.addEventListener('scroll', onUpdate, { passive: true, capture: true });
-      window.addEventListener('resize', onUpdate, { passive: true });
+      const win = this.document.defaultView;
+      win?.addEventListener('scroll', onUpdate, { passive: true, capture: true });
+      win?.addEventListener('resize', onUpdate, { passive: true });
 
       let ro: ResizeObserver | null = null;
       if (typeof ResizeObserver !== 'undefined') {
@@ -244,22 +245,23 @@ export class ActiveZoneOverlay {
       }
 
       this.destroyRef.onDestroy(() => {
-        window.removeEventListener('scroll', onUpdate, { capture: true });
-        window.removeEventListener('resize', onUpdate);
+        win?.removeEventListener('scroll', onUpdate, { capture: true });
+        win?.removeEventListener('resize', onUpdate);
         ro?.disconnect();
       });
     });
   }
 
   updateGeometry(): void {
-    if (typeof window === 'undefined') return;
+    const win = this.document.defaultView;
+    if (!win) return;
 
     const doc = this.document;
     const tgt = this.target();
     let top = 0;
     let left = 0;
-    let width = window.innerWidth;
-    let height = window.innerHeight;
+    let width = win.innerWidth;
+    let height = win.innerHeight;
 
     if (tgt && tgt !== 'window' && tgt instanceof HTMLElement) {
       const rect = tgt.getBoundingClientRect();

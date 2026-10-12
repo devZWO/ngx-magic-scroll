@@ -177,6 +177,30 @@ it('falls back to reading-line position when no section is fully contained (tall
   expect(provider.getNearestAnchor()).toBe('sec-1');
 });
 
+it('selects the first anchor when no anchor has crossed the boundary yet and none is fully contained', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  // Viewport is [0, 768], topBoundary is 0, bottomBoundary is 768.
+  // Both anchors start below triggerLine (top > 1) and extend beyond bottomBoundary (bottom > 769), so neither is fully contained or passed.
+  // We place sec-2 before sec-1 and sec-3 after to exercise both branches of reduce.
+  element('sec-2', 300, 1200);
+  element('sec-1', 100, 1000);
+  element('sec-3', 500, 1400);
+
+  expect(provider.getNearestAnchor()).toBe('sec-1');
+});
+
+it('falls back to documentElement clientHeight when defaultView is null', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  element('sec-1', 0, 100);
+  const spy = vi.spyOn(document, 'defaultView', 'get').mockReturnValue(null);
+  expect(provider.getNearestAnchor()).toBe('sec-1');
+  spy.mockRestore();
+});
+
 it('respects sticky headers and offsets when evaluating full containment', () => {
   TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   const provider = TestBed.inject(NearestAnchorProvider);
