@@ -16,7 +16,7 @@ export default defineConfig({
   webServer: {
     command: 'pnpm exec ng serve demo --host 127.0.0.1 --port 4200',
     url: 'http://127.0.0.1:4200',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env['CI'],
     timeout: 120_000,
   },
 });

@@ -63,7 +63,7 @@ export class NearestAnchorProvider {
    * 1. Evaluates all eligible anchors within the host or document.
    * 2. Determines the visible reading area (`topBoundary = scrollableTop + headerOffset + headerHeight`, `bottomBoundary = (containerBottom | viewportHeight) - bottomOffset`).
    * 3. Prioritizes fully contained anchors (`top >= topBoundary - 1` and `bottom <= bottomBoundary + 1`), selecting the topmost one.
-   * 4. Falls back to the anchor that crossed `topBoundary` most recently (`top <= topBoundary + 1`).
+   * 4. Falls back to the anchor that crossed `triggerLine` most recently (`top <= triggerLine + 1`).
    * 5. Falls back to the first anchor if no anchor has crossed the boundary yet.
    *
    * @param options - Host element, selector, scroll container and header-offset settings.
@@ -99,10 +99,13 @@ export class NearestAnchorProvider {
       scrollable === this.document.documentElement ||
       scrollable === this.document.body;
     const topBoundary = (isDocument ? 0 : scrollable.getBoundingClientRect().top) + offset;
-    const bottomBoundary =
-      (isDocument
-        ? (this.document.defaultView?.innerHeight ?? this.document.documentElement.clientHeight)
-        : scrollable.getBoundingClientRect().bottom) - (options?.bottomOffset ?? 0);
+    const viewportBottom = isDocument
+      ? (this.document.defaultView?.innerHeight ?? this.document.documentElement.clientHeight)
+      : scrollable.getBoundingClientRect().bottom;
+    const bottomBoundary = Math.max(
+      topBoundary,
+      viewportBottom - Math.max(0, options?.bottomOffset ?? 0),
+    );
 
     // 1. Check for fully contained anchors (entire element inside visible reading area)
     const containedAnchors = anchors.filter((el) => {

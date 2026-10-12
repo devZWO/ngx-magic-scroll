@@ -246,6 +246,47 @@ it('applies bottomOffset within scrollable containers', () => {
   expect(provider.getNearestAnchor({ hostElement: host, bottomOffset: 50 })).toBe('sec-1');
 });
 
+it('clamps negative bottomOffset so off-screen anchors below viewport are not treated as contained', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  // Document viewport is [0, 768]
+  element('sec-1', -100, 200); // partially visible, crossed triggerLine (0)
+  element('sec-2', 800, 850); // completely below viewport
+
+  // Negative bottomOffset should be clamped to 0, keeping bottomBoundary at 768.
+  // sec-2 (bottom 850 > 768) must not be treated as fully contained.
+  expect(provider.getNearestAnchor({ bottomOffset: -100 })).toBe('sec-1');
+});
+
+it('clamps bottomOffset when offset exceeds available height so bottomBoundary does not fall below topBoundary', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  const container = element('container', 100, 500); // top 100, bottom 500 (height 400)
+  container.style.overflowY = 'auto';
+  const host = document.createElement('div');
+  container.append(host);
+
+  const sec1 = element('sec-1', 50, 300);
+  const sec2 = element('sec-2', 140, 600);
+  host.append(sec1, sec2);
+
+  // topBoundary = 100 + 50 (headerOffset) = 150
+  // bottomOffset = 600 (exceeds container height 400).
+  // Clamped bottomBoundary = max(150, 500 - 600) = 150.
+  // triggerLine = 150 + (150 - 150) * 0.5 = 150.
+  // sec-2 top 140 <= 150, so sec-2 crossed the trigger line and wins.
+  expect(
+    provider.getNearestAnchor({
+      hostElement: host,
+      headerOffset: 50,
+      bottomOffset: 600,
+      activationThreshold: 0.5,
+    }),
+  ).toBe('sec-2');
+});
+
 it('applies activationThreshold to shift the trigger line relative to the reading area', () => {
   TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   const provider = TestBed.inject(NearestAnchorProvider);
