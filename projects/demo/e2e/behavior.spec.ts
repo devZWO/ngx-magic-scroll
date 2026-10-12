@@ -576,7 +576,7 @@ test('typing inside form controls does not cancel pending initial restoration', 
   await page.getByText('Loading behavior', { exact: true }).click();
   await page.getByLabel('Loading delay (ms)').focus();
   await page.keyboard.press('ArrowDown');
-  await page.keyboard.type('1200');
+  await page.getByLabel('Loading delay (ms)').fill('1200');
   await expect(page.getByRole('status')).toBeHidden();
   await aligned(page, '#eintrag-4', '.viewport');
 });
