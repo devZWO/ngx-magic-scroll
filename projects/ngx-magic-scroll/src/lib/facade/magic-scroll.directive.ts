@@ -216,6 +216,8 @@ export class MagicScrollDirective {
           this.initialized = true;
           if (!this.userInterrupted) {
             this.execute(this.initialAnchor, { behavior: this.options().behavior.restoration });
+          } else {
+            this.liveAnchor.set(this.calculateNearestAnchor() ?? null);
           }
         } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
           this.preserve('top');
