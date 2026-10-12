@@ -59,9 +59,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
   const tagName = target.tagName.toLowerCase();
   if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return true;
-  if ((target as HTMLElement).isContentEditable) return true;
-  if (target.closest('input, textarea, select, [contenteditable="true"]')) return true;
-  return false;
+  return Boolean(
+    (target as HTMLElement).isContentEditable ||
+    target.closest('input, textarea, select, [contenteditable="true"]'),
+  );
 }
 
 /**
@@ -222,9 +223,7 @@ export class MagicScrollDirective {
     effect(() => {
       const frag = this.fragment();
       untracked(() => {
-        if (frag !== undefined) {
-          this.liveAnchor.set(frag);
-        }
+        this.liveAnchor.set(frag);
       });
     });
 
@@ -335,8 +334,7 @@ export class MagicScrollDirective {
    */
   private preserve(ignoreWhenInView: ScrollOptions['ignoreWhenInView'] = 'none'): void {
     if (this.initialized) {
-      const target = this.liveAnchor() ?? this.fragment();
-      this.execute(target, { behavior: 'instant', ignoreWhenInView });
+      this.execute(this.liveAnchor(), { behavior: 'instant', ignoreWhenInView });
     }
   }
 
@@ -349,20 +347,19 @@ export class MagicScrollDirective {
     if (target !== this.target) {
       this.detachListeners();
       this.target = target;
-      this.attachListeners();
+      this.attachListeners(target);
     }
   }
 
   /**
    * Attaches passive scroll, gesture, and keyboard listeners to track user intent and scroll motion.
    */
-  private attachListeners(): void {
-    if (!this.target) return;
-    this.target.addEventListener('scroll', this.onScroll);
-    this.target.addEventListener('wheel', this.onUserIntent);
-    this.target.addEventListener('touchstart', this.onUserIntent);
-    this.target.addEventListener('touchmove', this.onUserIntent);
-    this.target.addEventListener('keydown', this.onKeyDown);
+  private attachListeners(target: EventTarget): void {
+    target.addEventListener('scroll', this.onScroll);
+    target.addEventListener('wheel', this.onUserIntent);
+    target.addEventListener('touchstart', this.onUserIntent);
+    target.addEventListener('touchmove', this.onUserIntent);
+    target.addEventListener('keydown', this.onKeyDown);
     this.document.addEventListener('keydown', this.onKeyDown);
   }
 
@@ -402,8 +399,7 @@ export class MagicScrollDirective {
       !targetEl ||
       targetEl === this.document.body ||
       targetEl === this.document.documentElement ||
-      (scrollable ? scrollable === targetEl || scrollable.contains(targetEl) : true) ||
-      this.host.contains(targetEl);
+      (scrollable ? scrollable === targetEl || scrollable.contains(targetEl) : true);
     if (isInsideContext) {
       this.userInterrupted = true;
     }

@@ -564,20 +564,199 @@ it('cancels pending initial restoration when user wheel/touch/key intent is dete
   expect(scroll.scroll).not.toHaveBeenCalled();
 });
 
-it('ignores key events from inputs, textareas, and contenteditable elements', () => {
+it('ignores key events from inputs, textareas, select dropdowns, and contenteditable elements', () => {
   const { host, container, render, scroll } = setup('item-2');
   expect(scroll.scroll).not.toHaveBeenCalled();
 
   const input = document.createElement('input');
+  const textarea = document.createElement('textarea');
+  const select = document.createElement('select');
+  const editableDiv = document.createElement('div');
+  editableDiv.contentEditable = 'true';
+  editableDiv.setAttribute('contenteditable', 'true');
+  const editableSpan = document.createElement('span');
+  editableDiv.appendChild(editableSpan);
+
+  // SVG element inside contenteditable where isContentEditable is undefined/false on SVGElement
+  const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  svgEl.appendChild(pathEl);
+  editableDiv.appendChild(svgEl);
+
   container.appendChild(input);
-  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  container.appendChild(textarea);
+  container.appendChild(select);
+  container.appendChild(editableDiv);
+
+  for (const el of [input, textarea, select, editableDiv, editableSpan, pathEl]) {
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  }
 
   // Data source arrives
   host.source.set([1, 2]);
   render();
 
-  // Initial restoration proceeds because keydown was on an editable input
+  // Initial restoration proceeds because all keydowns were on editable elements
   expect(scroll.scroll).toHaveBeenCalledWith('item-2', expect.anything());
+});
+
+it('cancels pending initial restoration on touchstart and touchmove gestures', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  container.dispatchEvent(new Event('touchstart', { bubbles: true }));
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('cancels pending initial restoration on touchmove gesture', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  container.dispatchEvent(new Event('touchmove', { bubbles: true }));
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('ignores non-keyboard events and non-scroll keys during keyboard intent interception', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  // Dispatch non-KeyboardEvent
+  container.dispatchEvent(new CustomEvent('keydown', { bubbles: true }));
+  // Dispatch non-scroll keys
+  container.dispatchEvent(new KeyboardEvent('keydown', { key: 'KeyA', bubbles: true }));
+  container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+
+  host.source.set([1, 2]);
+  render();
+
+  // Initial restoration still proceeds
+  expect(scroll.scroll).toHaveBeenCalledWith('item-2', expect.anything());
+});
+
+it('cancels initial restoration when scroll keys target document.body', () => {
+  const { host, render, scroll } = setup('item-2');
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('cancels initial restoration when scroll keys target document.documentElement', () => {
+  const { host, render, scroll } = setup('item-2');
+  document.documentElement.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+  );
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('cancels initial restoration when scroll keys target window or host elements', () => {
+  const { host, region, render, scroll } = setup('item-2');
+  const child = region.querySelector('#item-1')!;
+  child.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true }));
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('cancels initial restoration when keyboard event has a null target', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true });
+  Object.defineProperty(event, 'target', { value: null });
+  container.dispatchEvent(event);
+
+  host.source.set([1, 2]);
+  render();
+
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('cancels initial restoration when keyboard event occurs in document scroll context', () => {
+  const { host, region, render, scroll } = setup('item-2');
+  host.overflow.set('visible');
+  region.style.overflowY = 'visible';
+  render();
+
+  const externalDiv = document.createElement('div');
+  document.body.appendChild(externalDiv);
+  try {
+    externalDiv.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+    host.source.set([1, 2]);
+    render();
+
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  } finally {
+    externalDiv.remove();
+  }
+});
+
+it('does not cancel initial restoration when scroll keys originate from unrelated external DOM elements', () => {
+  const { host, render, scroll } = setup('item-2');
+
+  const externalContainer = document.createElement('div');
+  const externalButton = document.createElement('button');
+  externalContainer.appendChild(externalButton);
+  document.body.appendChild(externalContainer);
+
+  try {
+    // Dispatch scroll keydown from external element without bubbling to body
+    externalButton.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: false }),
+    );
+
+    host.source.set([1, 2]);
+    render();
+
+    // Initial restoration still proceeds
+    expect(scroll.scroll).toHaveBeenCalledWith('item-2', expect.anything());
+  } finally {
+    externalContainer.remove();
+  }
+});
+
+it('ignores scroll events before initialization and handles undefined nearest anchor gracefully', () => {
+  vi.useFakeTimers();
+  const { host, container, region, render, scroll } = setup('item-1');
+
+  // Scroll event before initialization (source is still undefined)
+  container.dispatchEvent(new Event('scroll'));
+  render();
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  // Now initialize
+  host.source.set([1, 2]);
+  render();
+  expect(scroll.scroll).toHaveBeenCalledWith('item-1', expect.anything());
+
+  // Make calculateNearestAnchor return undefined by putting all anchors out of view
+  for (const el of region.querySelectorAll<HTMLElement>('[id]')) {
+    el.getBoundingClientRect = () => rect(-9999);
+  }
+
+  // Scroll event with undefined nearest anchor
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(500);
+  render();
+
+  // No errors thrown, preservation with live anchor remains unaffected
+  expect(scroll.scroll).toHaveBeenCalled();
 });
 
 it('allows explicit scrollTo after user cancellation without inhibition', () => {
