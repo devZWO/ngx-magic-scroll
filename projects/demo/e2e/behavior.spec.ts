@@ -443,3 +443,92 @@ test('container scrolling activates fully visible sections and retains active re
   await expect(page).toHaveURL(/#kapitel-2$/);
   await expect(page.locator('output')).toHaveText('kapitel-2');
 });
+
+test('live activation threshold adjustment changes section trigger point', async ({ page }) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
+
+  // Place kapitel-2 at top -200 (scrolled past top) and kapitel-3 at top 250
+  // Container height is 480px.
+  // With threshold 0% (trigger line = 0px), kapitel-3 (top 250 > 0) is below trigger line, so kapitel-2 is active
+  await page.locator('#kapitel-2').evaluate((el) => {
+    (el as HTMLElement).style.minHeight = '450px';
+  });
+  await placeAnchor(page, '#kapitel-2', '.viewport', -200);
+  await expect(page).toHaveURL(/#kapitel-2$/);
+  await expect(page.locator('output')).toHaveText('kapitel-2');
+
+  // Now change activation threshold live to 75% (0.75 * 480 = 360px)
+  // Since kapitel-3 top (250px) is <= 360px trigger line, kapitel-3 becomes active immediately
+  await page.getByLabel('Activation threshold').selectOption('0.75');
+  await page.locator('.viewport').dispatchEvent('scroll');
+
+  await expect(page).toHaveURL(/#kapitel-3$/);
+  await expect(page.locator('output')).toHaveText('kapitel-3');
+});
+
+test('toggling active zone overlay renders exclusion zones and dynamic trigger badge', async ({
+  page,
+}) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+
+  // Overlay is initially hidden
+  await expect(page.locator('.active-zone-overlay')).toBeHidden();
+
+  // Toggle overlay on
+  await page.getByLabel('Show active zone overlay').check();
+  await expect(page.locator('.active-zone-overlay')).toBeVisible();
+  await expect(page.locator('[data-testid="reading-area-zone"]')).toBeVisible();
+  await expect(page.locator('[data-testid="trigger-line"]')).toBeVisible();
+  await expect(page.locator('[data-testid="trigger-line-badge"]')).toHaveText('Trigger Line (0%)');
+
+  // Adjust offsets and threshold
+  await page.getByLabel('Top offset').selectOption('20');
+  await page.getByLabel('Bottom offset').selectOption('48');
+  await page.getByLabel('Activation threshold').selectOption('0.5');
+
+  await expect(page.locator('[data-testid="top-exclusion-zone"]')).toContainText(
+    'Top Exclusion (20px)',
+  );
+  await expect(page.locator('[data-testid="bottom-exclusion-zone"]')).toContainText(
+    'Bottom Exclusion (48px)',
+  );
+  await expect(page.locator('[data-testid="trigger-line-badge"]')).toHaveText('Trigger Line (50%)');
+
+  // Navigation buttons still work through the non-blocking overlay
+  await page.getByRole('button', { name: 'kapitel-4', exact: true }).click();
+  await expect(page).toHaveURL(/#kapitel-4$/);
+
+  // Toggle overlay off
+  await page.getByLabel('Show active zone overlay').uncheck();
+  await expect(page.locator('.active-zone-overlay')).toBeHidden();
+});
+
+test('master-detail supports live active zone overlay and dynamic header offset updates', async ({
+  page,
+}) => {
+  await page.goto('/master-detail');
+  await page.getByText('Options', { exact: true }).click();
+
+  await page.getByLabel('Show active zone overlay').check();
+  await expect(page.locator('.active-zone-overlay')).toBeVisible();
+  await expect(page.locator('[data-testid="top-exclusion-zone"]')).toBeVisible();
+
+  // Expanding header dynamically increases measured header height and top exclusion zone
+  const initialTopHeight = await page
+    .locator('[data-testid="top-exclusion-zone"]')
+    .evaluate((el) => el.getBoundingClientRect().height);
+
+  await page.getByRole('button', { name: 'Change header height' }).click();
+
+  await expect
+    .poll(async () => {
+      const newHeight = await page
+        .locator('[data-testid="top-exclusion-zone"]')
+        .evaluate((el) => el.getBoundingClientRect().height);
+      return newHeight > initialTopHeight;
+    })
+    .toBe(true);
+});

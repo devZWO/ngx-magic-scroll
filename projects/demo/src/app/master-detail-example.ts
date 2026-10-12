@@ -1,10 +1,12 @@
-import { Component, signal, viewChild } from '@angular/core';
+import { Component, computed, signal, viewChild } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { delay, of } from 'rxjs';
 import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scroll';
+import { ScrollOptionsPanel } from './scroll-options';
+import { ActiveZoneOverlay } from './active-zone-overlay';
 
 @Component({
-  imports: [MagicScrollDirective],
+  imports: [MagicScrollDirective, ScrollOptionsPanel, ActiveZoneOverlay],
   providers: [
     provideMagicScroll({
       anchorPrefix: 'projekt-',
@@ -21,7 +23,7 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
       <p>
         Measured header height:
         <output data-testid="header-height">{{ scroll.headerHeight() }}</output> px · Active anchor:
-        {{ scroll.activeAnchor() }}
+        <output data-testid="active-anchor">{{ scroll.activeAnchor() }}</output>
       </p>
       @if (expanded()) {
         <p>Additional toolbar · The visible top edge adjusts automatically.</p>
@@ -32,6 +34,23 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
       The index on the left scrolls independently. Details on the right expand to their full height
       and scroll the document. Inspired by the portfolio editor in zwoPRO.
     </p>
+    <app-scroll-options
+      [(behavior)]="behavior"
+      [(offset)]="offset"
+      [(bottomOffset)]="bottomOffset"
+      [(activationThreshold)]="activationThreshold"
+      [(overlay)]="showOverlay"
+      [(debounceTime)]="debounceTime"
+      [showSpy]="true"
+    />
+    @if (showOverlay()) {
+      <app-active-zone-overlay
+        [headerSelector]="'.portfolio-header'"
+        [headerOffset]="offset()"
+        [bottomOffset]="bottomOffset()"
+        [activationThreshold]="activationThreshold()"
+      />
+    }
     <div class="portfolio-layout" [style.--header-offset]="scroll.offset() + 'px'">
       <aside class="portfolio-master" aria-label="Portfolio projects">
         <h2>Projects</h2>
@@ -46,7 +65,13 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
           }
         </nav>
       </aside>
-      <div class="portfolio-details" magicScroll #scroll="magicScroll" [scrollSource]="resource">
+      <div
+        class="portfolio-details"
+        magicScroll
+        #scroll="magicScroll"
+        [scrollSource]="resource"
+        [scrollOptions]="options()"
+      >
         @if (resource.isLoading()) {
           <p role="status">Loading projects…</p>
         }
@@ -130,8 +155,25 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
 export class MasterDetailExample {
   readonly projects = Array.from({ length: 24 }, (_, i) => i + 1);
   readonly expanded = signal(false);
+  readonly behavior = signal<ScrollBehavior>('instant');
+  readonly offset = signal(16);
+  readonly bottomOffset = signal(0);
+  readonly activationThreshold = signal(0);
+  readonly showOverlay = signal(false);
+  readonly debounceTime = signal(500);
+
   readonly resource = rxResource({ stream: () => of(this.projects).pipe(delay(250)) });
   private readonly scroll = viewChild.required(MagicScrollDirective);
+
+  readonly options = computed(() => ({
+    behavior: { interaction: this.behavior() },
+    headerSelector: '.portfolio-header',
+    headerOffset: this.offset(),
+    bottomOffset: this.bottomOffset(),
+    activationThreshold: this.activationThreshold(),
+    debounceTime: this.debounceTime(),
+  }));
+
   jump(id: number) {
     this.scroll().scrollTo('projekt-' + id);
   }
