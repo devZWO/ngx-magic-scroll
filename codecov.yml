@@ -1,0 +1,13 @@
+comment:
+  layout: "reach,diff,tree"
+  behavior: default
+  require_changes: false
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+    patch:
+      default:
+        target: 80%
