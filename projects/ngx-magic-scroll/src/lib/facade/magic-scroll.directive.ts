@@ -84,7 +84,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
  * 2. **User Intent Detection & Cancellation**:
  *    - Captures manual user gestures (`wheel`, `touchstart`, `touchmove`, navigation `keydown`) occurring prior
  *      to asynchronous `scrollSource` readiness.
- *    - Invalids pending delayed initial restorations so conscious user navigation is never overridden.
+ *    - Invalidates pending delayed initial restorations so conscious user navigation is never overridden.
  *    - Safely excludes editable form controls (`<input>`, `<textarea>`, `contenteditable`).
  * 3. **Reactive Render Pipeline & Lifecycle Coordination**:
  *    - Sequenced `afterRenderEffect` execution blocks guarantee sticky header measurement and `ResizeObserver`
