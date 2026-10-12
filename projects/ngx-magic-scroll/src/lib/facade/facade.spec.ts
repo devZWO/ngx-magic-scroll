@@ -520,3 +520,75 @@ it('uses document scrolling when a body or html overflow style defines the scrol
     root.style.overflowY = previous;
   }
 });
+
+it('uses live active section rather than stale URL fragment during data/resize corrections within debounce window', () => {
+  vi.useFakeTimers();
+  const { host, container, region, render, scroll } = setup('item-1');
+  host.options.set({ anchorPrefix: 'item-', debounceTime: 500 });
+  host.source.set([1]);
+  render();
+  expect(scroll.scroll).toHaveBeenLastCalledWith('item-1', expect.anything());
+
+  // Simulate scrolling from item-1 to item-2: item-2 is now visible at top
+  region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(-400);
+  region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(110);
+  container.dispatchEvent(new Event('scroll'));
+
+  // Only advance 50ms (well within 500ms debounce window). URL fragment is still 'item-1'.
+  vi.advanceTimersByTime(50);
+  render();
+
+  // Data update triggers preservation
+  host.source.set([1, 2]);
+  render();
+
+  // Preservation must target live section 'item-2', NOT stale fragment 'item-1'
+  expect(scroll.scroll).toHaveBeenLastCalledWith(
+    'item-2',
+    expect.objectContaining({ behavior: 'instant', ignoreWhenInView: 'top' }),
+  );
+});
+
+it('cancels pending initial restoration when user wheel/touch/key intent is detected before data readiness', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  // User scrolls with wheel before scrollSource is ready
+  container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+
+  // Data source arrives
+  host.source.set([1, 2]);
+  render();
+
+  // Initial restoration should be aborted due to intervening user intent
+  expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+it('ignores key events from inputs, textareas, and contenteditable elements', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  const input = document.createElement('input');
+  container.appendChild(input);
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+  // Data source arrives
+  host.source.set([1, 2]);
+  render();
+
+  // Initial restoration proceeds because keydown was on an editable input
+  expect(scroll.scroll).toHaveBeenCalledWith('item-2', expect.anything());
+});
+
+it('allows explicit scrollTo after user cancellation without inhibition', () => {
+  const { host, container, render, scroll } = setup('item-2');
+  container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+
+  host.source.set([1, 2]);
+  render();
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  // Explicit user scrollTo must still work smoothly
+  expect(host.scroll().scrollTo('item-1')).toBe(true);
+  expect(scroll.scroll).toHaveBeenLastCalledWith('item-1', expect.anything());
+});

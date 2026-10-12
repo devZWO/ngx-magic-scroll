@@ -532,3 +532,68 @@ test('master-detail supports live active zone overlay and dynamic header offset 
     })
     .toBe(true);
 });
+
+test('user wheel scrolling before delayed data readiness cancels initial restoration', async ({
+  page,
+}) => {
+  await page.goto('/navigation?delay=1200#eintrag-4');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await page.locator('.viewport').hover();
+  await page.mouse.wheel(0, 100);
+  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('#eintrag-4')).toBeAttached();
+  await page.waitForTimeout(300);
+  const isAligned = await page.locator('#eintrag-4').evaluate((el) => {
+    const scroller = document.querySelector('.viewport')!;
+    return Math.abs(el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) < 5;
+  });
+  expect(isAligned).toBe(false);
+});
+
+test('user keyboard scrolling before delayed data readiness cancels initial restoration', async ({
+  page,
+}) => {
+  await page.goto('/navigation?delay=1200#eintrag-4');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await page.locator('.viewport').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('#eintrag-4')).toBeAttached();
+  await page.waitForTimeout(300);
+  const isAligned = await page.locator('#eintrag-4').evaluate((el) => {
+    const scroller = document.querySelector('.viewport')!;
+    return Math.abs(el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) < 5;
+  });
+  expect(isAligned).toBe(false);
+});
+
+test('typing inside form controls does not cancel pending initial restoration', async ({
+  page,
+}) => {
+  await page.goto('/navigation?delay=1200#eintrag-4');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
+  // Interact with input inside details
+  await page.getByText('Loading behavior', { exact: true }).click();
+  await page.getByLabel('Loading delay (ms)').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.type('1200');
+  await expect(page.getByRole('status')).toBeHidden();
+  await aligned(page, '#eintrag-4', '.viewport');
+});
+
+test('explicit navigation functions normally after user cancellation', async ({ page }) => {
+  await page.goto('/navigation?delay=1200#eintrag-4');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await page.locator('.viewport').hover();
+  await page.mouse.wheel(0, 100);
+  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('#eintrag-4')).toBeAttached();
+  await page.waitForTimeout(300);
+
+  // Now explicitly navigate to eintrag-2
+  await page.locator('.viewport').evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await placeAnchor(page, '#eintrag-2', '.viewport', 0);
+  await expect(page).toHaveURL(/#eintrag-2$/);
+});

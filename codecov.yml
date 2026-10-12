@@ -1,5 +1,5 @@
 comment:
-  layout: "reach,diff,tree"
+  layout: 'reach,diff,tree'
   behavior: default
   require_changes: false
 
