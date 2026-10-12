@@ -2,8 +2,8 @@ import { Component, Injector, signal, viewChild } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { MagicScrollDirective } from './magic-scroll.directive';
-import { ScrollAnchorDirective } from './scroll-anchor.directive';
+import { MagicScrollDirective } from 'ngx-magic-scroll';
+import { ScrollAnchorDirective } from 'ngx-magic-scroll';
 import {
   MAGIC_SCROLL_OPTIONS,
   MagicScrollOptions,
@@ -54,6 +54,8 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
         anchorPrefix: 'parent-',
         headerSelector: '.header',
         headerOffset: 64,
+        bottomOffset: 32,
+        activationThreshold: 0.3,
         debounceTime: 1000,
         ignoreWhenInView: 'full',
         behavior: { restoration: 'auto', interaction: 'instant' },
@@ -74,6 +76,8 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
       anchorPrefix: '',
       headerSelector: '',
       headerOffset: 0,
+      bottomOffset: 0,
+      activationThreshold: 0,
       debounceTime: 0,
       ignoreWhenInView: 'none',
       restoreOnDataChange: false,
@@ -84,6 +88,8 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
     anchorPrefix: '',
     headerSelector: '',
     headerOffset: 0,
+    bottomOffset: 0,
+    activationThreshold: 0,
     debounceTime: 0,
     ignoreWhenInView: 'none',
     restoreOnDataChange: false,
@@ -297,6 +303,76 @@ it('debounces scroll spy, reacts to prefix changes and ignores scrolls before re
   routeFragment.next('external');
   render();
   expect(host.scroll().activeAnchor()).toBe('external');
+});
+
+it('passes bottomOffset from provider defaults and per-region scrollOptions to nearest anchor evaluation', () => {
+  vi.useFakeTimers();
+  TestBed.overrideComponent(Host, {
+    add: {
+      providers: [provideMagicScroll({ bottomOffset: 100 })],
+    },
+  });
+  const { host, container, render } = setup(null);
+  container.querySelectorAll('[data-scroll-anchor]').forEach((el) => el.remove());
+  host.source.set([1]);
+  render();
+
+  const item1 = container.querySelector('#item-1') as HTMLElement;
+  const item2 = container.querySelector('#item-2') as HTMLElement;
+  container.getBoundingClientRect = () => rect(0, 500);
+  item1.getBoundingClientRect = () => rect(-100, 300);
+  item2.getBoundingClientRect = () => rect(350, 100);
+
+  // With global bottomOffset: 100, container bottomBoundary is 500 - 100 = 400.
+  // item2 (bottom 450 > 400) is excluded from full containment, so item1 (reading line) is active.
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(500);
+  render();
+  expect(host.scroll().activeAnchor()).toBe('item-1');
+
+  // Override locally with bottomOffset: 20 -> bottomBoundary = 500 - 20 = 480.
+  // item2 (bottom 450 <= 480) is now fully contained and selected.
+  host.options.set({ anchorPrefix: 'item-', bottomOffset: 20, debounceTime: 50 });
+  render();
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(50);
+  render();
+  expect(host.scroll().activeAnchor()).toBe('item-2');
+});
+
+it('passes activationThreshold from provider defaults and per-region scrollOptions to nearest anchor evaluation', () => {
+  vi.useFakeTimers();
+  TestBed.overrideComponent(Host, {
+    add: {
+      providers: [provideMagicScroll({ activationThreshold: 0.5 })],
+    },
+  });
+  const { host, container, render } = setup(null);
+  container.querySelectorAll('[data-scroll-anchor]').forEach((el) => el.remove());
+  host.source.set([1]);
+  render();
+
+  const item1 = container.querySelector('#item-1') as HTMLElement;
+  const item2 = container.querySelector('#item-2') as HTMLElement;
+  container.getBoundingClientRect = () => rect(0, 600);
+  item1.getBoundingClientRect = () => rect(-200, 800);
+  item2.getBoundingClientRect = () => rect(350, 1000); // top 350 > 300 (midpoint of [0, 600])
+
+  // With global activationThreshold: 0.5, triggerLine = 0 + 600 * 0.5 = 300.
+  // item2 top 350 > 300, so item1 (reading line) is active.
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(500);
+  render();
+  expect(host.scroll().activeAnchor()).toBe('item-1');
+
+  // Override locally with activationThreshold: 0.7 -> triggerLine = 600 * 0.7 = 420.
+  // item2 (top 350 <= 420) crosses the 70% threshold and becomes active.
+  host.options.set({ anchorPrefix: 'item-', activationThreshold: 0.7, debounceTime: 50 });
+  render();
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(50);
+  render();
+  expect(host.scroll().activeAnchor()).toBe('item-2');
 });
 
 it('uses a scrollable host, switches to document scrolling on resize and tears down listeners', () => {

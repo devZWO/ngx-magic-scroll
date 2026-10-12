@@ -21,8 +21,29 @@ Restoration returns to an anchor's position with the configured top offset. It d
 
 - **`headerOffset`**: Static spacing in pixels (e.g. `headerOffset: 24`), adding visual breathing room above section headings.
 - **`headerSelector`**: CSS selector for a fixed or sticky navigation bar (e.g. `headerSelector: '.app-header'`). Its dynamically measured height is automatically added to the boundary offset so obscured elements do not trigger activation or get covered during scroll restoration.
+- **`bottomOffset`**: Static bottom spacing in pixels (e.g. `bottomOffset: 40`), accounting for sticky footers, floating action bars, or aesthetic margins.
+- **`activationThreshold`**: Relative focal trigger threshold from `0.0` (top boundary) to `1.0` (bottom boundary), defining the trigger line (`topBoundary + (bottomBoundary - topBoundary) * activationThreshold`) where sections transition to active status.
 
-Active section detection evaluates elements within the visible reading area between the effective top boundary (`containerTop + headerHeight + headerOffset`) and bottom boundary (`containerBottom` or viewport bottom), prioritizing fully visible sections before falling back to reading-position tracking for tall content.
+Active section detection evaluates elements within the visible reading area between the effective top boundary (`containerTop + headerHeight + headerOffset`) and bottom boundary (`(containerBottom | viewportHeight) - bottomOffset`), prioritizing fully visible sections before falling back to reading-position tracking for tall content relative to the configured `activationThreshold`.
+
+You can configure offsets globally in application providers or locally per scroll region:
+
+```ts
+// Global configuration
+provideMagicScroll({
+  headerSelector: '.app-header',
+  headerOffset: 24,
+  bottomOffset: 48,
+  activationThreshold: 0.3,
+});
+```
+
+```html
+<!-- Per-region override -->
+<div magicScroll [scrollOptions]="{ headerOffset: 16, bottomOffset: 32, activationThreshold: 0.5 }">
+  ...
+</div>
+```
 
 ## A region selects its anchors
 

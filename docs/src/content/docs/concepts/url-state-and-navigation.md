@@ -16,12 +16,15 @@ After scrolling settles, the region determines which section the user is current
   - For nested scrollable containers (`overflow: auto | scroll`), `containerTop` is the container's top edge (`getBoundingClientRect().top`).
   - With `headerSelector`, sticky header height is measured and added dynamically.
   - With `headerOffset`, custom pixel padding or trigger line offsets are included.
-- **Bottom boundary (`bottomBoundary`)**: `window.innerHeight` for document scrolling, or `container.getBoundingClientRect().bottom` for scrollable containers.
+- **Bottom boundary (`bottomBoundary`)**: `(isDocument ? window.innerHeight : containerBottom) - bottomOffset`
+  - With `bottomOffset`, bottom margins or space occupied by sticky footers and bottom floating bars are excluded from the active evaluation window.
+- **Trigger line (`triggerLine`)**: `topBoundary + (bottomBoundary - topBoundary) * activationThreshold`
+  - With `activationThreshold` (`0.0` to `1.0`, default `0.0`), developers can position the active trigger focal line anywhere across the visible reading band (e.g. `0.3` for upper-third reading focus, `0.5` for center trigger).
 
 ### Evaluation Priority
 
 1. **Fully Contained Sections (Full Containment Elevation)**: If an upcoming section is 100% visible within the reading area (`top >= topBoundary - 1` and `bottom <= bottomBoundary + 1`), it becomes active immediately—even if a small tail of the previous section is still visible at the top. If multiple sections are fully visible, the topmost fully contained section is selected.
-2. **Tall Section Reading Retention (Reading Line Fallback)**: For sections that are taller than the viewport (or long multi-paragraph articles), the section remains active while scrolling through its body (`top <= topBoundary + 1`) until a subsequent section crosses the top activation boundary or becomes fully visible.
+2. **Tall Section Reading Retention (Reading Line Fallback)**: For sections that are taller than the viewport (or long multi-paragraph articles), the section remains active while scrolling through its body (`top <= triggerLine + 1`) until a subsequent section crosses the trigger line or becomes fully visible.
 3. **Top of Page Fallback**: When scrolled above all anchors, the first anchor is selected.
 
 Scroll-spy updates are debounced by 500 ms by default (`debounceTime`). During continuous movement, the fragment can therefore lag behind the viewport until scrolling pauses. If there are no eligible candidates, the existing fragment remains unchanged.

@@ -31,6 +31,14 @@ export interface NearestAnchorOptions {
    * as the topmost visible anchor.
    */
   headerSelector?: string;
+  /**
+   * Static bottom offset, in pixels, such as a sticky footer gap or bottom margin.
+   */
+  bottomOffset?: number;
+  /**
+   * Relative activation threshold (0.0 to 1.0) defining the trigger line within the visible reading area.
+   */
+  activationThreshold?: number;
 }
 
 /**
@@ -53,7 +61,7 @@ export class NearestAnchorProvider {
    * Calculates the ID of the active anchor based on scroll position and visible area boundaries.
    *
    * 1. Evaluates all eligible anchors within the host or document.
-   * 2. Determines the visible reading area (`topBoundary = scrollableTop + headerOffset + headerHeight`, `bottomBoundary = containerBottom | viewportHeight`).
+   * 2. Determines the visible reading area (`topBoundary = scrollableTop + headerOffset + headerHeight`, `bottomBoundary = (containerBottom | viewportHeight) - bottomOffset`).
    * 3. Prioritizes fully contained anchors (`top >= topBoundary - 1` and `bottom <= bottomBoundary + 1`), selecting the topmost one.
    * 4. Falls back to the anchor that crossed `topBoundary` most recently (`top <= topBoundary + 1`).
    * 5. Falls back to the first anchor if no anchor has crossed the boundary yet.
@@ -65,7 +73,8 @@ export class NearestAnchorProvider {
    * const nearestId = nearestAnchorProvider.getNearestAnchor({
    *   hostElement: listContainer,
    *   selector: '[id^="card-"]',
-   *   headerSelector: '.app-header'
+   *   headerSelector: '.app-header',
+   *   bottomOffset: 40
    * });
    * ```
    */
@@ -90,9 +99,10 @@ export class NearestAnchorProvider {
       scrollable === this.document.documentElement ||
       scrollable === this.document.body;
     const topBoundary = (isDocument ? 0 : scrollable.getBoundingClientRect().top) + offset;
-    const bottomBoundary = isDocument
-      ? (this.document.defaultView?.innerHeight ?? this.document.documentElement.clientHeight)
-      : scrollable.getBoundingClientRect().bottom;
+    const bottomBoundary =
+      (isDocument
+        ? (this.document.defaultView?.innerHeight ?? this.document.documentElement.clientHeight)
+        : scrollable.getBoundingClientRect().bottom) - (options?.bottomOffset ?? 0);
 
     // 1. Check for fully contained anchors (entire element inside visible reading area)
     const containedAnchors = anchors.filter((el) => {
@@ -108,11 +118,13 @@ export class NearestAnchorProvider {
       return topmostContained.id;
     }
 
-    // 2. Reading line fallback: Anchor that crossed topBoundary most recently
-    const passedAnchors = anchors.filter((el) => el.getBoundingClientRect().top <= topBoundary + 1);
+    // 2. Reading line fallback: Anchor that crossed triggerLine most recently
+    const threshold = Math.max(0, Math.min(1, options?.activationThreshold ?? 0));
+    const triggerLine = topBoundary + (bottomBoundary - topBoundary) * threshold;
+    const passedAnchors = anchors.filter((el) => el.getBoundingClientRect().top <= triggerLine + 1);
 
     if (passedAnchors.length > 0) {
-      // Pick the anchor that crossed the boundary most recently (highest top <= topBoundary)
+      // Pick the anchor that crossed the trigger line most recently (highest top <= triggerLine)
       const active = passedAnchors.reduce((best, el) =>
         el.getBoundingClientRect().top > best.getBoundingClientRect().top ? el : best,
       );

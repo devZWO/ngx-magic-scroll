@@ -209,6 +209,103 @@ it('evaluates full containment within scrollable container boundaries', () => {
   expect(provider.getNearestAnchor({ hostElement: host })).toBe('sec-2');
 });
 
+it('adjusts the bottom boundary when bottomOffset is specified', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  // Document viewport is [0, 768]
+  element('sec-1', -100, 200); // top -100 (partially above)
+  element('sec-2', 600, 750); // top 600, bottom 750 (inside [0, 768])
+
+  // Without bottomOffset, sec-2 is fully contained in [0, 768] and wins
+  expect(provider.getNearestAnchor()).toBe('sec-2');
+
+  // With bottomOffset: 100, bottomBoundary becomes 768 - 100 = 668.
+  // sec-2 (bottom 750) is no longer fully contained in [0, 668], so sec-1 (reading line top <= 0) wins
+  expect(provider.getNearestAnchor({ bottomOffset: 100 })).toBe('sec-1');
+});
+
+it('applies bottomOffset within scrollable containers', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  const container = element('container', 100, 500);
+  container.style.overflowY = 'auto';
+  const host = document.createElement('div');
+  container.append(host);
+
+  const sec1 = element('sec-1', 50, 200);
+  const sec2 = element('sec-2', 380, 480);
+  host.append(sec1, sec2);
+
+  // In container [100, 500]: sec-2 is fully contained
+  expect(provider.getNearestAnchor({ hostElement: host })).toBe('sec-2');
+
+  // With bottomOffset: 50, container bottomBoundary is 500 - 50 = 450.
+  // sec-2 (bottom 480 > 450) is excluded from full containment, falling back to sec-1
+  expect(provider.getNearestAnchor({ hostElement: host, bottomOffset: 50 })).toBe('sec-1');
+});
+
+it('applies activationThreshold to shift the trigger line relative to the reading area', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  // Document viewport is [0, 768]
+  const sec1 = element('section-1', -200, 800);
+  const sec2 = element('section-2', 400, 1400);
+
+  // With default threshold (0), trigger line is 0. sec2 top 400 > 0, so sec1 wins
+  expect(provider.getNearestAnchor()).toBe('section-1');
+
+  // With activationThreshold: 0.5, triggerLine = 0 + (768 - 0) * 0.5 = 384.
+  // sec2 top 400 > 384 -> sec1 is still active
+  expect(provider.getNearestAnchor({ activationThreshold: 0.5 })).toBe('section-1');
+
+  // When sec2 scrolls up to top 350 (<= 384): sec2 crosses the 50% trigger line and becomes active
+  sec1.getBoundingClientRect = () => rect(-250, 750);
+  sec2.getBoundingClientRect = () => rect(350, 1350);
+  expect(provider.getNearestAnchor({ activationThreshold: 0.5 })).toBe('section-2');
+});
+
+it('applies activationThreshold combined with container bounds, header offset, and bottom offset', () => {
+  TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
+  const provider = TestBed.inject(NearestAnchorProvider);
+
+  const container = element('container', 100, 600); // top 100, bottom 600
+  container.style.overflowY = 'auto';
+  const host = document.createElement('div');
+  container.append(host);
+
+  const sec1 = element('sec-1', 50, 1000);
+  const sec2 = element('sec-2', 300, 1500);
+  host.append(sec1, sec2);
+
+  // topBoundary = 100 + 20 (headerOffset) = 120
+  // bottomBoundary = 600 - 80 (bottomOffset) = 520
+  // visible reading area = 520 - 120 = 400
+  // triggerLine = 120 + 400 * 0.25 = 220
+  // sec2 top 300 > 220 -> sec1 active
+  expect(
+    provider.getNearestAnchor({
+      hostElement: host,
+      headerOffset: 20,
+      bottomOffset: 80,
+      activationThreshold: 0.25,
+    }),
+  ).toBe('sec-1');
+
+  // Scroll sec2 to top 200 (<= 220) -> sec2 becomes active
+  sec2.getBoundingClientRect = () => rect(200, 1400);
+  expect(
+    provider.getNearestAnchor({
+      hostElement: host,
+      headerOffset: 20,
+      bottomOffset: 80,
+      activationThreshold: 0.25,
+    }),
+  ).toBe('sec-2');
+});
+
 it('keeps the active section while scrolling through a long section until the next section crosses the activation boundary', () => {
   TestBed.configureTestingModule({ providers: [NearestAnchorProvider] });
   const provider = TestBed.inject(NearestAnchorProvider);

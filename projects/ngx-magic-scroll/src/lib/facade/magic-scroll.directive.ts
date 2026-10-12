@@ -125,6 +125,8 @@ export class MagicScrollDirective {
         anchors: this.anchors(),
         scrollable: this.scrollable(),
         headerOffset: this.offset(),
+        bottomOffset: this.options().bottomOffset,
+        activationThreshold: this.options().activationThreshold,
       });
       if (anchor) this.fragment.set(anchor);
     });
