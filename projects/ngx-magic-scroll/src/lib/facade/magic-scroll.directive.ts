@@ -59,9 +59,14 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
   const tagName = target.tagName.toLowerCase();
   if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return true;
+  const editableHost = target.closest('[contenteditable]');
+  const editableValue = editableHost?.getAttribute('contenteditable')?.toLowerCase();
   return Boolean(
     (target as HTMLElement).isContentEditable ||
-    target.closest('input, textarea, select, [contenteditable="true"]'),
+    target.closest('input, textarea, select') ||
+    editableValue === '' ||
+    editableValue === 'true' ||
+    editableValue === 'plaintext-only'
   );
 }
 
