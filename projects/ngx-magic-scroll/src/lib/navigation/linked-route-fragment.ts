@@ -3,13 +3,24 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 
 /**
+ * Key used to tag internal library-initiated scroll-spy navigation events.
+ */
+export const MAGIC_SCROLL_ORIGIN_KEY = '__ngx_magic_scroll_origin';
+
+/**
+ * Value identifying an internal scroll-spy navigation origin.
+ */
+export const MAGIC_SCROLL_ORIGIN_SCROLL_SPY = 'scroll-spy';
+
+/**
  * Creates an Angular signal synchronized bidirectionally with the URL fragment (#fragment).
  *
  * Reads the current route fragment as a writable signal (WritableSignal).
  * - Reading reacts to URL fragment changes through ActivatedRoute.fragment.
  * - Writing, for example fragmentSignal.set('anchor-id'), asynchronously updates the URL
- *   through Router.navigateByUrl with replaceUrl: true. This preserves query parameters
- *   and avoids adding a history entry for each scroll update.
+ *   through Router.navigateByUrl with replaceUrl: true and origin tagging. This preserves query parameters
+ *   and avoids adding a history entry for each scroll update while distinguishing scroll-spy updates from
+ *   external user navigations.
  *
  * @returns A WritableSignal<string | null | undefined> linked to the URL fragment.
  * @example
@@ -35,16 +46,26 @@ export function linkedRouteFragment(): WritableSignal<string | null | undefined>
 
   effect(() => {
     const newFragment = actualFragment();
-    if (route.snapshot.fragment !== newFragment) {
+    const currentRouteFragment = fragment();
+    if (currentRouteFragment !== newFragment) {
       const tree = router.createUrlTree([], {
         relativeTo: route,
         fragment: newFragment ?? undefined,
         queryParamsHandling: 'preserve',
       });
 
-      router.navigateByUrl(tree, { replaceUrl: true }).catch((error: Error) => {
-        console.log(`Cant set fragment ${newFragment}`, error);
-      });
+      router
+        .navigateByUrl(tree, {
+          replaceUrl: true,
+          state: {
+            ...history.state,
+            [MAGIC_SCROLL_ORIGIN_KEY]: MAGIC_SCROLL_ORIGIN_SCROLL_SPY,
+          },
+          info: { [MAGIC_SCROLL_ORIGIN_KEY]: MAGIC_SCROLL_ORIGIN_SCROLL_SPY },
+        })
+        .catch((error: Error) => {
+          console.log(`Cant set fragment ${newFragment}`, error);
+        });
     }
   });
 

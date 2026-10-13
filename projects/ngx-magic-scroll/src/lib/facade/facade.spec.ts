@@ -163,7 +163,21 @@ class Host {
 function setup(fragment: string | null = 'item-1') {
   const routeFragment = new BehaviorSubject(fragment);
   const scroll = { scroll: vi.fn(() => true) };
-  const router = { createUrlTree: vi.fn(), navigateByUrl: vi.fn(() => Promise.resolve(true)) };
+  let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
+  const router = {
+    createUrlTree: vi.fn(),
+    navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
+      currentNav = { extras, trigger: 'imperative' };
+      return Promise.resolve(true);
+    }),
+    getCurrentNavigation: () => currentNav,
+    get lastSuccessfulNavigation() {
+      return currentNav;
+    },
+    setNavigation(extras?: { state?: unknown; info?: unknown }, trigger = 'imperative') {
+      currentNav = { extras, trigger };
+    },
+  };
   TestBed.configureTestingModule({
     imports: [Host],
     providers: [
@@ -207,27 +221,26 @@ it('waits for explicit undefined input, restores once, and preserves later data 
   render();
   host.source.set([3]);
   render();
-  expect(scroll.scroll).toHaveBeenCalledTimes(2);
+  expect(scroll.scroll).toHaveBeenCalledTimes(3);
 });
 
-it('supports static resolver content without a source and does not retry a missing initial anchor', () => {
+it('supports static resolver content without a source and retries initial anchor when DOM element is attached', async () => {
   TestBed.overrideComponent(Host, {
     set: {
       template:
         '<div class="container"><div magicScroll><section id="item-1"></section><section id="item-2"></section></div></div>',
     },
   });
-  const { fixture, host, render, scroll } = setup('missing');
+  const { fixture, render, scroll } = setup('missing');
   expect(scroll.scroll).not.toHaveBeenCalled();
   const section = document.createElement('section');
   section.id = 'missing';
   fixture.nativeElement.querySelector('[magicScroll]').append(section);
+  await Promise.resolve();
   render();
-  expect(scroll.scroll).not.toHaveBeenCalled();
-  expect(host.scroll().scrollTo('missing')).toBe(true);
-  expect(scroll.scroll).toHaveBeenLastCalledWith(
+  expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
     'missing',
-    expect.objectContaining({ behavior: 'smooth' }),
+    expect.objectContaining({ behavior: 'instant' }),
   );
 });
 
@@ -784,4 +797,704 @@ it('sets liveAnchor to null on user interruption when no nearest anchor is found
   render();
 
   expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+describe('subsequent router fragment navigation', () => {
+  it('automatically scrolls to target anchor on subsequent external router navigation with restoration behavior', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
+      'item-1',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+
+    // Subsequent external router navigation
+    routeFragment.next('item-2');
+    render();
+
+    expect(scroll.scroll).toHaveBeenCalledTimes(2);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('uses configured behavior.restoration for subsequent router navigations', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.options.set({ anchorPrefix: 'item-', behavior: { restoration: 'smooth' } });
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({ behavior: 'smooth' }),
+    );
+
+    routeFragment.next('item-2');
+    render();
+
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'smooth' }),
+    );
+  });
+
+  it('queues navigation when scrollSource is loading and executes once data is ready', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    // Initially loaded with item-1
+    host.source.set([1]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Source becomes loading
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    // Subsequent external router navigation occurs while loading
+    routeFragment.next('item-2');
+    render();
+
+    // Should not scroll immediately since data is not ready
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Data finishes loading
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Now it should scroll to item-2
+    expect(scroll.scroll).toHaveBeenCalledTimes(2);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('queues navigation when target DOM element is not yet rendered and executes once rendered', () => {
+    const { fixture, host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // External navigation to a dynamic anchor not yet in DOM
+    routeFragment.next('item-dynamic');
+    render();
+
+    // Not yet in DOM -> not scrolled
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Dynamic section is rendered into DOM and source updates
+    const section = document.createElement('section');
+    section.id = 'item-dynamic';
+    fixture.nativeElement.querySelector('[magicScroll]').append(section);
+    host.source.set([1, 2]);
+    render();
+
+    expect(scroll.scroll).toHaveBeenCalledTimes(2);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-dynamic',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('cancels older pending destination when a newer navigation arrives before readiness', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    // Initial item-1 pending
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // Navigate rapidly to item-2 before ready
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // Data becomes ready
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Only item-2 should be executed, not item-1
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('cancels pending destination when user manual interaction occurs before data readiness', () => {
+    const { host, container, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    // Navigation occurs while loading
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // User scrolls manually with mouse wheel
+    container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+
+    // Data finishes loading
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Restoration must NOT execute because user interacted
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  });
+
+  it('cancels pending destination on keyboard scroll navigation before data readiness', () => {
+    const { host, container, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // User presses ArrowDown key
+    container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+    // Data finishes loading
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Restoration must NOT execute
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  });
+
+  it('does not scroll on query-only navigation when fragment is unchanged or absent', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Emitting same fragment (e.g. from query param update)
+    routeFragment.next('item-1');
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Emitting null fragment
+    routeFragment.next(null);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trigger scrolling on internal scroll-spy fragment updates', () => {
+    vi.useFakeTimers();
+    const { host, container, render, scroll } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // User scrolls to item-2 (internal scroll event)
+    container.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(500);
+    render();
+
+    // Internal scroll-spy updates URL fragment, but must NOT trigger an automated scroll action
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not scroll or throw when external navigation target is missing or in another region', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // External navigation to non-existent target
+    routeFragment.next('non-existent');
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // External target in separate element outside magicScroll region
+    const outsideEl = document.createElement('div');
+    outsideEl.id = 'item-outside';
+    document.body.appendChild(outsideEl);
+    try {
+      routeFragment.next('item-outside');
+      render();
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    } finally {
+      outsideEl.remove();
+    }
+  });
+
+  it('cleans up pending router navigation on directive teardown', () => {
+    const { fixture, host, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // Destroy fixture
+    fixture.destroy();
+
+    // Finish loading after destroy
+    data.set([1, 2]);
+    loading.set(false);
+
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  });
+
+  it('origin tagging ensures sibling magicScroll regions do not misinterpret internal scroll-spy events as external navigations', () => {
+    @Component({
+      imports: [MagicScrollDirective],
+      template: `
+        <div class="container-a">
+          <div class="region-a" magicScroll [scrollSource]="sourceA()">
+            <section id="a-1"></section>
+            <section id="a-2"></section>
+          </div>
+        </div>
+        <div class="container-b">
+          <div class="region-b" magicScroll [scrollSource]="sourceB()">
+            <section id="b-1"></section>
+            <section id="b-2"></section>
+          </div>
+        </div>
+      `,
+    })
+    class SiblingHost {
+      readonly sourceA = signal<unknown[]>([1, 2]);
+      readonly sourceB = signal<unknown[]>([1, 2]);
+    }
+
+    vi.useFakeTimers();
+    const routeFragment = new BehaviorSubject<string | null>('a-1');
+    const scroll = { scroll: vi.fn(() => true) };
+    let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
+    const router = {
+      createUrlTree: vi.fn(),
+      navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
+        currentNav = { extras, trigger: 'imperative' };
+        return Promise.resolve(true);
+      }),
+      getCurrentNavigation: () => currentNav,
+      get lastSuccessfulNavigation() {
+        return currentNav;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      imports: [SiblingHost],
+      providers: [
+        { provide: ScrollService, useValue: scroll },
+        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'a-1' } } },
+        { provide: Router, useValue: router },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(SiblingHost);
+    fixture.detectChanges();
+    const containerA = fixture.nativeElement.querySelector('.region-a') as HTMLElement;
+    const containerB = fixture.nativeElement.querySelector('.region-b') as HTMLElement;
+    containerA.querySelector<HTMLElement>('#a-1')!.getBoundingClientRect = () => rect(100);
+    containerA.querySelector<HTMLElement>('#a-2')!.getBoundingClientRect = () => rect(200);
+    containerB.querySelector<HTMLElement>('#b-1')!.getBoundingClientRect = () => rect(100);
+    containerB.querySelector<HTMLElement>('#b-2')!.getBoundingClientRect = () => rect(200);
+
+    const render = () => {
+      fixture.detectChanges();
+      TestBed.tick();
+    };
+
+    render();
+    // Initial restoration for 'a-1' in Region A
+    expect(scroll.scroll).toHaveBeenCalledWith('a-1', expect.anything());
+    const initialCallCount = scroll.scroll.mock.calls.length;
+
+    // Region A scrolls internally to a-2
+    containerA.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(500);
+    render();
+
+    // Sibling Region B must NOT scroll or misinterpret Region A's scroll-spy update
+    expect(scroll.scroll).toHaveBeenCalledTimes(initialCallCount);
+
+    // External navigation occurs to 'b-2' without internal scroll-spy marker
+    currentNav = { extras: {}, trigger: 'imperative' };
+    routeFragment.next('b-2');
+    render();
+
+    // Region B restores scroll for external navigation to 'b-2'
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'b-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('restores scroll on browser history popstate navigation even when state is present', () => {
+    const { host, render, scroll, routeFragment, router } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Browser back button triggers popstate navigation with state
+    router.setNavigation({ state: { __ngx_magic_scroll_origin: 'scroll-spy' } }, 'popstate');
+    routeFragment.next('item-2');
+    render();
+
+    // Must be treated as external and restore scroll because trigger is popstate
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('correctly reads signal-based lastSuccessfulNavigation and recognizes internal origin', () => {
+    const routeFragment = new BehaviorSubject<string | null>('item-1');
+    const scroll = { scroll: vi.fn(() => true) };
+    const navSignal = signal<{
+      extras: { info: Record<string, string> };
+      trigger: string;
+    } | null>({
+      extras: { info: { __ngx_magic_scroll_origin: 'scroll-spy' } },
+      trigger: 'imperative',
+    });
+    const router = {
+      createUrlTree: vi.fn(),
+      navigateByUrl: vi.fn(async () => true),
+      getCurrentNavigation: vi.fn(() => null),
+      lastSuccessfulNavigation: navSignal,
+    };
+
+    TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [
+        { provide: ScrollService, useValue: scroll },
+        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'item-1' } } },
+        { provide: Router, useValue: router },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    const host = fixture.componentInstance;
+    host.source.set([1, 2]);
+    fixture.detectChanges();
+    TestBed.tick();
+
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Internal scroll-spy navigation reflected via lastSuccessfulNavigation signal
+    routeFragment.next('item-2');
+    fixture.detectChanges();
+    TestBed.tick();
+
+    // Must not trigger external restoration
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+  });
+
+  describe('bounded post-render retry for delayed DOM destinations', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('retries pending destination when target DOM element is rendered after scroll source becomes ready (initial load)', async () => {
+      const { fixture, host, render, scroll } = setup('item-3');
+      host.source.set([1, 2, 3]);
+      render();
+
+      // Initially, target #item-3 is not yet present in DOM, so scroll is not called
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // Target element is rendered in a subsequent render cycle
+      const section = document.createElement('section');
+      section.id = 'item-3';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      await Promise.resolve();
+      render();
+
+      // Pending destination is retried and successfully executed
+      expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
+        'item-3',
+        expect.objectContaining({ behavior: 'instant' }),
+      );
+    });
+
+    it('retries pending destination when external route fragment navigation occurs before target DOM element renders', async () => {
+      const { fixture, host, render, scroll, routeFragment } = setup('item-1');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('item-1', expect.anything());
+
+      // Subsequent external navigation to item-3
+      routeFragment.next('item-3');
+      render();
+
+      // #item-3 is not yet rendered
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+      // #item-3 is inserted into DOM
+      const section = document.createElement('section');
+      section.id = 'item-3';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      await Promise.resolve();
+      render();
+
+      // Retries and executes external navigation
+      expect(scroll.scroll).toHaveBeenCalledTimes(2);
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-3',
+        expect.objectContaining({ behavior: 'instant' }),
+      );
+    });
+
+    it('cancels pending destination retry when user scrolls via wheel gesture', () => {
+      const { fixture, host, container, render, scroll } = setup('item-deferred');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // User interacts with container via wheel
+      container.dispatchEvent(new Event('wheel'));
+
+      // Target element is rendered afterwards
+      const section = document.createElement('section');
+      section.id = 'item-deferred';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      render();
+
+      // Pending destination was canceled, so scroll should not be executed
+      expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+
+    it('cancels pending destination retry when user scrolls via touch gesture', () => {
+      const { fixture, host, container, render, scroll } = setup('item-touch-deferred');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // User interacts via touchstart
+      container.dispatchEvent(new Event('touchstart'));
+
+      // Target is rendered afterwards
+      const section = document.createElement('section');
+      section.id = 'item-touch-deferred';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+
+    it('cancels pending destination retry when user navigates via keyboard in scroll context', () => {
+      const { fixture, host, container, render, scroll } = setup('item-key-deferred');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // User presses ArrowDown on container
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+      // Target is rendered afterwards
+      const section = document.createElement('section');
+      section.id = 'item-key-deferred';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+
+    it('supersedes existing pending destination when a new external navigation arrives', () => {
+      const { fixture, host, render, scroll, routeFragment } = setup('item-first');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // New external navigation supersedes item-first with item-2 (which exists in DOM)
+      routeFragment.next('item-2');
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
+        'item-2',
+        expect.objectContaining({ behavior: 'instant' }),
+      );
+
+      // Rendering item-first now should not trigger scroll to item-first
+      const section = document.createElement('section');
+      section.id = 'item-first';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    });
+
+    it('supersedes pending destination when explicit scrollTo is executed', () => {
+      const { fixture, host, render, scroll } = setup('item-deferred');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // Explicit scrollTo to item-2
+      expect(host.scroll().scrollTo('item-2')).toBe(true);
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+      // Item deferred renders later
+      const section = document.createElement('section');
+      section.id = 'item-deferred';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      render();
+
+      // Must not trigger deferred scroll
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops retrying non-existent target anchor gracefully after timeout window', () => {
+      const { host, render, scroll } = setup('item-non-existent');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // Advance time beyond retry timeout
+      vi.advanceTimersByTime(2000);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+
+    it('schedules retry when data updates while a destination is pending and not yet rendered in DOM', async () => {
+      const { fixture, host, render, scroll, routeFragment } = setup('item-1');
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('item-1', expect.anything());
+
+      // Navigate to a new fragment that does not exist in DOM yet
+      routeFragment.next('item-deferred-data');
+      render();
+
+      // Data updates while destination is still pending
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+      // Element is rendered
+      const section = document.createElement('section');
+      section.id = 'item-deferred-data';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      await Promise.resolve();
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledTimes(2);
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-deferred-data',
+        expect.objectContaining({ behavior: 'instant' }),
+      );
+    });
+
+    it('cleans up observer if mutation callback executes after user interruption', async () => {
+      const { fixture, host, container, render, scroll } = setup('item-interrupted-before-flush');
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // DOM mutation occurs
+      const section = document.createElement('section');
+      section.id = 'unrelated';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+
+      // User interacts before mutation observer microtask finishes
+      container.dispatchEvent(new Event('wheel'));
+
+      await Promise.resolve();
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+
+    it('does not execute pending destination during mutation if scroll source is not ready', async () => {
+      const { fixture, host, render, scroll } = setup('item-not-ready-yet');
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // Source becomes not ready (e.g., refetching)
+      host.source.set(undefined);
+      render();
+
+      // DOM mutation occurs while source is not ready
+      const section = document.createElement('section');
+      section.id = 'item-not-ready-yet';
+      fixture.nativeElement.querySelector('[magicScroll]').append(section);
+      await Promise.resolve();
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // Source becomes ready again
+      host.source.set([1, 2]);
+      await Promise.resolve();
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
+        'item-not-ready-yet',
+        expect.objectContaining({ behavior: 'instant' }),
+      );
+    });
+
+    it('does not preserve position on data change when user has already interrupted', () => {
+      const { container, host, render, scroll } = setup('item-1');
+      host.source.set([1, 2]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+      // User interrupts
+      container.dispatchEvent(new Event('wheel'));
+
+      // Subsequent data change
+      host.source.set([1, 2, 3]);
+      render();
+
+      // Should not trigger preservation
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    });
+
+    it('cleans up retry observer and timers when directive is destroyed', () => {
+      const { fixture, host, render, scroll } = setup('item-destroy-test');
+      host.source.set([1, 2]);
+      render();
+
+      fixture.destroy();
+
+      const section = document.createElement('section');
+      section.id = 'item-destroy-test';
+      expect(() => {
+        fixture.nativeElement.querySelector?.('[magicScroll]')?.append(section);
+        vi.advanceTimersByTime(1000);
+      }).not.toThrow();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -597,3 +597,64 @@ test('explicit navigation functions normally after user cancellation', async ({ 
   await placeAnchor(page, '#eintrag-2', '.viewport', 0);
   await expect(page).toHaveURL(/#eintrag-2$/);
 });
+
+test('subsequent external router fragment navigation restores target element alignment', async ({
+  page,
+}) => {
+  await page.goto('/document#kapitel-1');
+  await aligned(page, '#kapitel-1', '.viewport');
+
+  // Navigate to #kapitel-4 via router navigation
+  await page.evaluate(() => {
+    window.location.hash = 'kapitel-4';
+  });
+  await aligned(page, '#kapitel-4', '.viewport');
+  await expect(page).toHaveURL(/#kapitel-4$/);
+
+  // Navigate to #kapitel-2
+  await page.evaluate(() => {
+    window.location.hash = 'kapitel-2';
+  });
+  await aligned(page, '#kapitel-2', '.viewport');
+  await expect(page).toHaveURL(/#kapitel-2$/);
+});
+
+test('browser history back and forward navigation automatically restores fragment position', async ({
+  page,
+}) => {
+  await page.goto('/document#kapitel-1');
+  await aligned(page, '#kapitel-1', '.viewport');
+
+  // Push new fragment to history
+  await page.evaluate(() => {
+    window.location.hash = 'kapitel-3';
+  });
+  await aligned(page, '#kapitel-3', '.viewport');
+
+  // Browser back
+  await page.goBack();
+  await aligned(page, '#kapitel-1', '.viewport');
+  await expect(page).toHaveURL(/#kapitel-1$/);
+
+  // Browser forward
+  await page.goForward();
+  await aligned(page, '#kapitel-3', '.viewport');
+  await expect(page).toHaveURL(/#kapitel-3$/);
+});
+
+test('subsequent navigation during async data loading queues and restores once data is ready', async ({
+  page,
+}) => {
+  await page.goto('/navigation?delay=1200#eintrag-1');
+  await expect(page.getByRole('status')).toHaveText('Loading…');
+
+  // Navigate to eintrag-4 while still loading
+  await page.evaluate(() => {
+    window.location.hash = 'eintrag-4';
+  });
+
+  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('#eintrag-4')).toBeAttached();
+  await aligned(page, '#eintrag-4', '.viewport');
+  await expect(page).toHaveURL(/#eintrag-4$/);
+});

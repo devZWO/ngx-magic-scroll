@@ -26,6 +26,21 @@ Restoration returns to an anchor's position with the configured top offset. It d
 
 Active section detection evaluates elements within the visible reading area between the effective top boundary (`containerTop + headerHeight + headerOffset`) and bottom boundary (`(containerBottom | viewportHeight) - bottomOffset`), prioritizing fully visible sections before falling back to reading-position tracking for tall content relative to the configured `activationThreshold`.
 
+```mermaid
+flowchart TB
+    subgraph Viewport ["Scroll Viewport / Container"]
+        direction TB
+        TopZone["<b>Top Exclusion Area</b><br/><i>[0 .. topBoundary]</i><br/>Sticky Header (headerSelector) + headerOffset"]
+        ReadingZone["<b>Active Reading Band</b><br/><i>[topBoundary .. bottomBoundary]</i><br/>Full containment evaluation area"]
+        TriggerLine["<b>─── Dynamic Trigger Line ───</b><br/><i>topBoundary + (ReadingBand * activationThreshold)</i>"]
+        BottomZone["<b>Bottom Exclusion Area</b><br/><i>[bottomBoundary .. containerBottom]</i><br/>Sticky Footer / Padding (bottomOffset)"]
+
+        TopZone --- ReadingZone
+        ReadingZone --- TriggerLine
+        TriggerLine --- BottomZone
+    end
+```
+
 You can configure offsets globally in application providers or locally per scroll region:
 
 ```ts

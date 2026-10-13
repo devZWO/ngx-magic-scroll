@@ -121,7 +121,7 @@ describe('recipe integration: real Angular rxResource', () => {
     await test.settle();
     expect(test.scroll).toHaveBeenLastCalledWith(
       'item-1',
-      expect.objectContaining({ behavior: 'instant', ignoreWhenInView: 'top' }),
+      expect.objectContaining({ behavior: 'instant' }),
     );
   });
 
@@ -149,7 +149,7 @@ describe('recipe integration: real Angular rxResource', () => {
     expect(test.scroll).toHaveBeenCalledExactlyOnceWith('item-2', expect.anything());
   });
 
-  it('treats an empty success as ready and does not retry the initial target on later updates', async () => {
+  it('treats an empty success as ready and retries the initial target when rendered on later updates', async () => {
     const first = new Subject<Item[]>();
     const next = new Subject<Item[]>();
     let requests = 0;
@@ -171,10 +171,9 @@ describe('recipe integration: real Angular rxResource', () => {
     next.next([{ id: 2 }]);
     next.complete();
     await test.settle();
-    // A later update is a current-anchor correction, not initial restoration.
     expect(test.scroll).toHaveBeenCalledExactlyOnceWith(
       'item-2',
-      expect.objectContaining({ ignoreWhenInView: 'top' }),
+      expect.objectContaining({ behavior: 'instant' }),
     );
   });
 });
@@ -219,7 +218,7 @@ describe('recipe integration: real NgRx Signal Store', () => {
     test.render();
     expect(test.scroll).toHaveBeenLastCalledWith(
       'item-1',
-      expect.objectContaining({ ignoreWhenInView: 'top' }),
+      expect.objectContaining({ behavior: 'instant' }),
     );
   });
 });

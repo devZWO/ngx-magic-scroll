@@ -58,6 +58,7 @@ Provider defaults are inherited through Angular's injector hierarchy. Region `sc
 
 ## Related documentation
 
+- [Data readiness and restoration](../data-readiness-and-restoration/) explains initial restoration, user cancellation, and the event lifecycle diagram.
 - [Sticky master–detail](../../recipes/sticky-master-detail/) shares the measured offset with a sticky sidebar.
 - [Paginated lists](../../recipes/paginated-lists/) shows data updates and optional correction disabling.
 - [MagicScrollOptions](../../api/interfaces/magicscrolloptions/) documents configuration defaults and visibility rules.
