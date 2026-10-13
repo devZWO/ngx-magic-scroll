@@ -47,6 +47,37 @@ If the user interacts with the page or scroll container before data readiness ar
 
 Typing inside editable form controls (`input`, `textarea`, `select`, or `contenteditable` elements) is safely ignored and does not cancel restoration. Subsequent explicit navigation using `scrollTo()` continues to function normally without restriction.
 
+```mermaid
+graph TD
+    subgraph User & Browser Events
+        UserScroll[User Wheel / Touch / Keyboard]
+        BrowserScroll[Scroll Event]
+        DataUpdate[Data Ready / Resize Event]
+    end
+
+    subgraph MagicScrollDirective
+        IntentDetector{User Intent?}
+        LiveTracker[RAF Live Section Calculator]
+        DebounceTimer[Debounce Timer]
+        PreserveHandler[preserve Realignment]
+        InitialRestore[Initial Restoration]
+    end
+
+    subgraph State
+        LiveAnchor[liveAnchor Signal]
+        URLFragment[URL Route Fragment]
+    end
+
+    UserScroll -->|Intervention| IntentDetector
+    IntentDetector -->|Cancel pending| InitialRestore
+    BrowserScroll --> LiveTracker
+    LiveTracker --> LiveAnchor
+    LiveTracker --> DebounceTimer
+    DebounceTimer --> URLFragment
+    DataUpdate --> PreserveHandler
+    LiveAnchor -->|Source of Truth| PreserveHandler
+```
+
 Later ready source changes can still trigger position preservation using the current active section. That is a separate behavior, described in [Position preservation and layout changes](../position-preservation/), and should not be used as a strategy for loading a missing initial target.
 
 An explicit `scrollTo()` call also requires an existing target. It does not wait for `scrollSource` to become ready.
