@@ -163,7 +163,21 @@ class Host {
 function setup(fragment: string | null = 'item-1') {
   const routeFragment = new BehaviorSubject(fragment);
   const scroll = { scroll: vi.fn(() => true) };
-  const router = { createUrlTree: vi.fn(), navigateByUrl: vi.fn(() => Promise.resolve(true)) };
+  let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
+  const router = {
+    createUrlTree: vi.fn(),
+    navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
+      currentNav = { extras, trigger: 'imperative' };
+      return Promise.resolve(true);
+    }),
+    getCurrentNavigation: () => currentNav,
+    get lastSuccessfulNavigation() {
+      return currentNav;
+    },
+    setNavigation(extras?: { state?: unknown; info?: unknown }, trigger = 'imperative') {
+      currentNav = { extras, trigger };
+    },
+  };
   TestBed.configureTestingModule({
     imports: [Host],
     providers: [
@@ -1037,5 +1051,154 @@ describe('subsequent router fragment navigation', () => {
     loading.set(false);
 
     expect(scroll.scroll).not.toHaveBeenCalled();
+  });
+
+  it('origin tagging ensures sibling magicScroll regions do not misinterpret internal scroll-spy events as external navigations', () => {
+    @Component({
+      imports: [MagicScrollDirective],
+      template: `
+        <div class="container-a">
+          <div class="region-a" magicScroll [scrollSource]="sourceA()">
+            <section id="a-1"></section>
+            <section id="a-2"></section>
+          </div>
+        </div>
+        <div class="container-b">
+          <div class="region-b" magicScroll [scrollSource]="sourceB()">
+            <section id="b-1"></section>
+            <section id="b-2"></section>
+          </div>
+        </div>
+      `,
+    })
+    class SiblingHost {
+      readonly sourceA = signal<unknown[]>([1, 2]);
+      readonly sourceB = signal<unknown[]>([1, 2]);
+    }
+
+    vi.useFakeTimers();
+    const routeFragment = new BehaviorSubject<string | null>('a-1');
+    const scroll = { scroll: vi.fn(() => true) };
+    let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
+    const router = {
+      createUrlTree: vi.fn(),
+      navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
+        currentNav = { extras, trigger: 'imperative' };
+        return Promise.resolve(true);
+      }),
+      getCurrentNavigation: () => currentNav,
+      get lastSuccessfulNavigation() {
+        return currentNav;
+      },
+    };
+
+    TestBed.configureTestingModule({
+      imports: [SiblingHost],
+      providers: [
+        { provide: ScrollService, useValue: scroll },
+        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'a-1' } } },
+        { provide: Router, useValue: router },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(SiblingHost);
+    fixture.detectChanges();
+    const containerA = fixture.nativeElement.querySelector('.region-a') as HTMLElement;
+    const containerB = fixture.nativeElement.querySelector('.region-b') as HTMLElement;
+    containerA.querySelector<HTMLElement>('#a-1')!.getBoundingClientRect = () => rect(100);
+    containerA.querySelector<HTMLElement>('#a-2')!.getBoundingClientRect = () => rect(200);
+    containerB.querySelector<HTMLElement>('#b-1')!.getBoundingClientRect = () => rect(100);
+    containerB.querySelector<HTMLElement>('#b-2')!.getBoundingClientRect = () => rect(200);
+
+    const render = () => {
+      fixture.detectChanges();
+      TestBed.tick();
+    };
+
+    render();
+    // Initial restoration for 'a-1' in Region A
+    expect(scroll.scroll).toHaveBeenCalledWith('a-1', expect.anything());
+    const initialCallCount = scroll.scroll.mock.calls.length;
+
+    // Region A scrolls internally to a-2
+    containerA.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(500);
+    render();
+
+    // Sibling Region B must NOT scroll or misinterpret Region A's scroll-spy update
+    expect(scroll.scroll).toHaveBeenCalledTimes(initialCallCount);
+
+    // External navigation occurs to 'b-2' without internal scroll-spy marker
+    currentNav = { extras: {}, trigger: 'imperative' };
+    routeFragment.next('b-2');
+    render();
+
+    // Region B restores scroll for external navigation to 'b-2'
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'b-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('restores scroll on browser history popstate navigation even when state is present', () => {
+    const { host, render, scroll, routeFragment, router } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Browser back button triggers popstate navigation with state
+    router.setNavigation({ state: { __ngx_magic_scroll_origin: 'scroll-spy' } }, 'popstate');
+    routeFragment.next('item-2');
+    render();
+
+    // Must be treated as external and restore scroll because trigger is popstate
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('correctly reads signal-based lastSuccessfulNavigation and recognizes internal origin', () => {
+    const routeFragment = new BehaviorSubject<string | null>('item-1');
+    const scroll = { scroll: vi.fn(() => true) };
+    const navSignal = signal<{
+      extras: { info: Record<string, string> };
+      trigger: string;
+    } | null>({
+      extras: { info: { __ngx_magic_scroll_origin: 'scroll-spy' } },
+      trigger: 'imperative',
+    });
+    const router = {
+      createUrlTree: vi.fn(),
+      navigateByUrl: vi.fn(async () => true),
+      getCurrentNavigation: vi.fn(() => null),
+      lastSuccessfulNavigation: navSignal,
+    };
+
+    TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [
+        { provide: ScrollService, useValue: scroll },
+        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'item-1' } } },
+        { provide: Router, useValue: router },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    const host = fixture.componentInstance;
+    host.source.set([1, 2]);
+    fixture.detectChanges();
+    TestBed.tick();
+
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Internal scroll-spy navigation reflected via lastSuccessfulNavigation signal
+    routeFragment.next('item-2');
+    fixture.detectChanges();
+    TestBed.tick();
+
+    // Must not trigger external restoration
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
   });
 });

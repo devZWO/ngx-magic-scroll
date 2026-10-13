@@ -46,7 +46,8 @@ export function linkedRouteFragment(): WritableSignal<string | null | undefined>
 
   effect(() => {
     const newFragment = actualFragment();
-    if (route.snapshot.fragment !== newFragment) {
+    const currentRouteFragment = fragment();
+    if (currentRouteFragment !== newFragment) {
       const tree = router.createUrlTree([], {
         relativeTo: route,
         fragment: newFragment ?? undefined,

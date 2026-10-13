@@ -12,8 +12,12 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { linkedRouteFragment } from '../navigation/linked-route-fragment';
+import { ActivatedRoute, Navigation, Router } from '@angular/router';
+import {
+  linkedRouteFragment,
+  MAGIC_SCROLL_ORIGIN_KEY,
+  MAGIC_SCROLL_ORIGIN_SCROLL_SPY,
+} from '../navigation/linked-route-fragment';
 import { injectScrollableParentElement } from '../navigation/inject-scrollable-parent';
 import { NearestAnchorProvider } from '../navigation/nearest-anchor.provider';
 import { ScrollOptions, ScrollService } from '../navigation/scroll-service';
@@ -132,6 +136,7 @@ export class MagicScrollDirective {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly service = inject(ScrollService);
   private readonly nearest = inject(NearestAnchorProvider);
+  private readonly router = inject(Router, { optional: true });
 
   /** Bidirectional route fragment synchronization signal (debounced URL writer and listener). */
   private readonly fragment = linkedRouteFragment();
@@ -175,9 +180,6 @@ export class MagicScrollDirective {
 
   /** Tracks the last fragment processed from route fragment synchronization. */
   private lastProcessedFragment: string | null | undefined = undefined;
-
-  /** Tracks the last fragment initiated internally via scroll-spy or programmatic scrollTo. */
-  private lastInternalFragment: string | null = null;
 
   private target?: EventTarget;
   private timer?: ReturnType<typeof setTimeout>;
@@ -260,9 +262,7 @@ export class MagicScrollDirective {
         }
 
         if (frag) {
-          const isInternal = this.lastInternalFragment === frag;
-          this.lastInternalFragment = null;
-          if (!isInternal) {
+          if (!this.isInternalNavigation()) {
             this.userInterrupted = false;
             this.pendingDestination = frag;
             const source = this.scrollSource();
@@ -285,10 +285,31 @@ export class MagicScrollDirective {
       if (!this.scrollRevision()) return;
       const anchor = this.calculateNearestAnchor();
       if (anchor) {
-        this.lastInternalFragment = anchor;
         this.fragment.set(anchor);
       }
     });
+  }
+
+  /**
+   * Determines whether the active router navigation was initiated internally by scroll-spy.
+   */
+  private isInternalNavigation(): boolean {
+    const raw =
+      typeof this.router?.getCurrentNavigation === 'function'
+        ? (this.router.getCurrentNavigation() ?? this.router.lastSuccessfulNavigation)
+        : this.router?.lastSuccessfulNavigation;
+    const nav: Navigation | null =
+      typeof raw === 'function' ? (raw as () => Navigation | null)() : (raw ?? null);
+    const stateOrigin = (nav?.extras?.state as Record<string, unknown> | undefined)?.[
+      MAGIC_SCROLL_ORIGIN_KEY
+    ];
+    const infoOrigin = (nav?.extras?.info as Record<string, unknown> | undefined)?.[
+      MAGIC_SCROLL_ORIGIN_KEY
+    ];
+    return (
+      infoOrigin === MAGIC_SCROLL_ORIGIN_SCROLL_SPY ||
+      (nav?.trigger !== 'popstate' && stateOrigin === MAGIC_SCROLL_ORIGIN_SCROLL_SPY)
+    );
   }
 
   /**
@@ -311,7 +332,6 @@ export class MagicScrollDirective {
     if (executed) {
       const clean = anchor.replace(/^#/, '');
       this.liveAnchor.set(clean);
-      this.lastInternalFragment = clean;
       this.pendingDestination = null;
       this.fragment.set(clean);
     }
