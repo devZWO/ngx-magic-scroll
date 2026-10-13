@@ -429,18 +429,34 @@ export class MagicScrollDirective {
    * Queries and returns all eligible scroll anchor elements belonging strictly to this directive instance.
    *
    * @remarks
-   * Anchors must possess a non-empty `id` and either match the configured `anchorPrefix` or contain
-   * the `data-scroll-anchor` attribute. The `closest('[magicScroll]') === this.host` check prevents
-   * nested or parent `magicScroll` directive instances from capturing child anchors across boundaries.
+   * Anchors must possess a non-empty `id` and satisfy the configured selection strategy:
+   * - In `'explicit'` mode: Only elements marked with the `data-scroll-anchor` attribute participate,
+   *   ignoring prefix rules and excluding generated component/form IDs.
+   * - In `'all'` mode (default): Elements matching any configured `anchorPrefixes` OR bearing
+   *   the `data-scroll-anchor` attribute participate.
+   *
+   * The `closest('[magicScroll]') === this.host` check guarantees that nested child regions
+   * retain strict isolation over their own anchors and do not leak across region boundaries.
    */
   private anchors(): HTMLElement[] {
-    const prefix = this.options().anchorPrefix;
-    return Array.from(this.host.querySelectorAll<HTMLElement>('[id]')).filter(
-      (el) =>
-        !!el.id &&
-        (el.hasAttribute('data-scroll-anchor') || el.id.startsWith(prefix)) &&
-        el.closest('[magicScroll]') === this.host,
-    );
+    const { anchorSelection, anchorPrefixes } = this.options();
+    return Array.from(this.host.querySelectorAll<HTMLElement>('[id]')).filter((el) => {
+      // 1. Elements must have a non-empty ID and belong directly to this magicScroll host.
+      if (!el.id || el.closest('[magicScroll]') !== this.host) {
+        return false;
+      }
+
+      // 2. Strict explicit selection strategy: Ignore prefixes; admit only explicitly marked elements.
+      if (anchorSelection === 'explicit') {
+        return el.hasAttribute('data-scroll-anchor');
+      }
+
+      // 3. Default/all selection strategy: Admit explicitly marked elements or elements matching any configured prefix.
+      return (
+        el.hasAttribute('data-scroll-anchor') ||
+        anchorPrefixes.some((prefix) => el.id.startsWith(prefix))
+      );
+    });
   }
 
   /**

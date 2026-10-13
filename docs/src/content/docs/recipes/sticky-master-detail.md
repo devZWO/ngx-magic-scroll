@@ -22,7 +22,7 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
   imports: [MagicScrollDirective],
   providers: [
     provideMagicScroll({
-      anchorPrefix: 'project-',
+      anchorPrefixes: ['project-'],
       headerSelector: '.portfolio-header',
       headerOffset: 16,
     }),

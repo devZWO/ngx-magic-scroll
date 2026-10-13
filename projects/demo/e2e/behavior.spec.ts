@@ -120,6 +120,41 @@ test('prefix filtering excludes a closer intermediate anchor and can be disabled
   await expect(page).toHaveURL(/#zwischen-kapitel-3$/);
 });
 
+test('anchor selection strategy options switch between prefixes and explicit-only mode while excluding generated Material IDs', async ({
+  page,
+}) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll-spy delay').selectOption('0');
+
+  // Verify Angular Material input is rendered with an ID
+  const matInput = page.locator('.demo-material-form input');
+  await expect(matInput).toBeVisible();
+  const matId = await matInput.getAttribute('id');
+  expect(matId).toBeTruthy();
+
+  // In default single prefix mode: explicit marker spezial-notiz is eligible
+  await page.getByRole('button', { name: 'spezial-notiz', exact: true }).click();
+  await aligned(page, '#spezial-notiz', '.viewport');
+  await expect(page).toHaveURL(/#spezial-notiz$/);
+
+  // Switch to multi-prefix mode: anhang-detail is now eligible
+  await page.getByLabel('Anchor selection').selectOption('multi-prefix');
+  await page.getByRole('button', { name: 'anhang-detail', exact: true }).click();
+  await aligned(page, '#anhang-detail', '.viewport');
+  await expect(page).toHaveURL(/#anhang-detail$/);
+
+  // Switch to explicit-only mode: only explicit scrollAnchor markers are eligible (kapitel-4 is ignored)
+  await page.getByLabel('Anchor selection').selectOption('explicit');
+  await page.getByRole('button', { name: 'kapitel-4', exact: true }).click();
+  await expect(page.getByRole('status', { name: 'Scroll result' })).toContainText('Scrolling skipped');
+
+  // Explicit target works in explicit mode
+  await page.getByRole('button', { name: 'spezial-notiz', exact: true }).click();
+  await aligned(page, '#spezial-notiz', '.viewport');
+  await expect(page).toHaveURL(/#spezial-notiz$/);
+});
+
 test('wheel and keyboard scroll the document container and synchronize its anchor', async ({
   page,
 }) => {

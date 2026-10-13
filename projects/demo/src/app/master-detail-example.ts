@@ -9,7 +9,7 @@ import { ActiveZoneOverlay } from './active-zone-overlay';
   imports: [MagicScrollDirective, ScrollOptionsPanel, ActiveZoneOverlay],
   providers: [
     provideMagicScroll({
-      anchorPrefix: 'projekt-',
+      anchorPrefixes: ['projekt-'],
       headerSelector: '.portfolio-header',
       headerOffset: 16,
       behavior: { interaction: 'instant' },

@@ -1,10 +1,29 @@
 import { inject, InjectionToken, Provider } from '@angular/core';
 import { ScrollOptions } from '../navigation/scroll-service';
 
+/**
+ * Anchor selection strategy for a `magicScroll` region.
+ * - `'all'`: Default strategy. Descendant elements matching any configured `anchorPrefixes`
+ *   (or all non-empty IDs if no prefix is configured) as well as explicit `scrollAnchor` markers participate.
+ * - `'explicit'`: Strict explicit-only mode. Only elements marked with `[scrollAnchor]` or `scrollAnchor`
+ *   participate, regardless of their element ID or configured prefixes.
+ */
+export type AnchorSelectionMode = 'all' | 'explicit';
+
 /** Defaults for an application or overrides for one `magicScroll` region. */
 export interface MagicScrollOptions {
-  /** All descendant IDs participate when empty. Explicit `scrollAnchor`s also participate. */
-  anchorPrefix?: string;
+  /**
+   * Allowed anchor ID prefixes. Descendant elements matching any prefix participate.
+   * Explicit `scrollAnchor` markers also participate.
+   * Passing an empty array `[]` disables prefix matching so only explicit markers participate.
+   */
+  anchorPrefixes?: readonly string[] | string[];
+  /**
+   * Selection strategy for anchor discovery.
+   * - `'all'`: Selects elements matching prefixes or explicit markers (default).
+   * - `'explicit'`: Selects only elements with explicit `scrollAnchor` markers.
+   */
+  anchorSelection?: AnchorSelectionMode;
   /** Selector for a fixed/sticky header whose height is measured automatically. */
   headerSelector?: string;
   /** Gap below the header, or the complete top offset when no header is selected. */
@@ -27,7 +46,8 @@ export interface MagicScrollOptions {
 }
 
 export interface ResolvedMagicScrollOptions {
-  anchorPrefix: string;
+  anchorPrefixes: readonly string[];
+  anchorSelection: AnchorSelectionMode;
   headerSelector: string;
   headerOffset: number;
   bottomOffset: number;
@@ -40,7 +60,8 @@ export interface ResolvedMagicScrollOptions {
 }
 
 const defaults: ResolvedMagicScrollOptions = {
-  anchorPrefix: '',
+  anchorPrefixes: [''],
+  anchorSelection: 'all',
   headerSelector: '',
   headerOffset: 0,
   bottomOffset: 0,
@@ -57,7 +78,8 @@ export function resolveMagicScrollOptions(
   options: MagicScrollOptions,
 ): ResolvedMagicScrollOptions {
   return {
-    anchorPrefix: options.anchorPrefix ?? parent.anchorPrefix,
+    anchorPrefixes: options.anchorPrefixes ?? parent.anchorPrefixes,
+    anchorSelection: options.anchorSelection ?? parent.anchorSelection,
     headerSelector: options.headerSelector ?? parent.headerSelector,
     headerOffset: options.headerOffset ?? parent.headerOffset,
     bottomOffset: options.bottomOffset ?? parent.bottomOffset,
@@ -83,7 +105,7 @@ export const MAGIC_SCROLL_OPTIONS = new InjectionToken<ResolvedMagicScrollOption
  * Per-region `scrollOptions` and per-call `scrollTo` options take precedence.
  *
  * @example
- * provideMagicScroll({ anchorPrefix: 'project-', behavior: { interaction: 'smooth' } })
+ * provideMagicScroll({ anchorPrefixes: ['project-'], behavior: { interaction: 'smooth' } })
  */
 export function provideMagicScroll(options: MagicScrollOptions = {}): Provider {
   return {

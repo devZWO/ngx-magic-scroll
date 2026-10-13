@@ -2,14 +2,28 @@ import { Component, computed, ElementRef, inject, signal, viewChild } from '@ang
 import { rxResource } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatDrawerContent, MatSidenavModule } from '@angular/material/sidenav';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { delay, map, of, timer } from 'rxjs';
-import { ScrollOptionsPanel, VisibilityMode } from './scroll-options';
+import { AnchorStrategyOption, ScrollOptionsPanel, VisibilityMode } from './scroll-options';
 import { ActiveZoneOverlay } from './active-zone-overlay';
-import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scroll';
+import {
+  MagicScrollDirective,
+  MagicScrollOptions,
+  provideMagicScroll,
+  ScrollAnchorDirective,
+} from '@devzwo/ngx-magic-scroll';
 
 @Component({
-  imports: [MagicScrollDirective, ScrollOptionsPanel, ActiveZoneOverlay],
-  providers: [provideMagicScroll({ anchorPrefix: 'kapitel-' })],
+  imports: [
+    MagicScrollDirective,
+    ScrollAnchorDirective,
+    ScrollOptionsPanel,
+    ActiveZoneOverlay,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
+  providers: [provideMagicScroll({ anchorPrefixes: ['kapitel-'] })],
   template: `<h1>Document · Synchronize anchors</h1>
     <p>Scrolling updates the active section and the URL fragment.</p>
     <app-scroll-options
@@ -21,12 +35,13 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
       [(visibility)]="visibility"
       [(debounceTime)]="debounceTime"
       [(onlyPrefixed)]="onlyPrefixed"
+      [(strategy)]="strategy"
       [showVisibility]="true"
       [showSpy]="true"
     />
     <p role="status" aria-label="Scroll result">{{ result() }}</p>
     <nav aria-label="Sections">
-      @for (id of sections; track id) {
+      @for (id of navSections; track id) {
         <button (click)="jump(id)">{{ id }}</button>
       }
     </nav>
@@ -48,6 +63,22 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
             <h2>{{ id }}</h2>
             <h3 [id]="'zwischen-' + id">Intermediate heading</h3>
             <p>A vertically scrollable document with stable section anchors.</p>
+            @if (id === 'kapitel-1') {
+              <div [scrollAnchor]="'spezial-notiz'" class="demo-note">
+                <p><strong>Explicit scrollAnchor:</strong> Eligible in explicit and all modes.</p>
+              </div>
+            }
+            @if (id === 'kapitel-2') {
+              <div id="anhang-detail" class="demo-appendix">
+                <p><strong>Appendix anchor (anhang-):</strong> Eligible in multi-prefix and all modes.</p>
+              </div>
+              <form class="demo-material-form" (submit)="$event.preventDefault()">
+                <mat-form-field appearance="outline">
+                  <mat-label>Feedback note</mat-label>
+                  <input matInput placeholder="Material input with generated ID" />
+                </mat-form-field>
+              </form>
+            }
           </section>
         }
       </div>
@@ -55,6 +86,15 @@ import { MagicScrollDirective, provideMagicScroll } from '@devzwo/ngx-magic-scro
 })
 export class DocumentExample {
   readonly sections = ['kapitel-1', 'kapitel-2', 'kapitel-3', 'kapitel-4', 'kapitel-5'];
+  readonly navSections = [
+    'kapitel-1',
+    'kapitel-2',
+    'kapitel-3',
+    'kapitel-4',
+    'kapitel-5',
+    'anhang-detail',
+    'spezial-notiz',
+  ];
   readonly behavior = signal<ScrollBehavior>('instant');
   readonly offset = signal(0);
   readonly bottomOffset = signal(0);
@@ -63,28 +103,45 @@ export class DocumentExample {
   readonly visibility = signal<VisibilityMode>('none');
   readonly debounceTime = signal(500);
   readonly onlyPrefixed = signal(true);
+  readonly strategy = signal<AnchorStrategyOption>('prefix');
   readonly result = signal('Choose a target or scroll within the document.');
   private readonly scroll = viewChild.required(MagicScrollDirective);
-  readonly options = computed(() => ({
-    behavior: { interaction: this.behavior() },
-    headerOffset: this.offset(),
-    bottomOffset: this.bottomOffset(),
-    activationThreshold: this.activationThreshold(),
-    ignoreWhenInView: this.visibility(),
-    debounceTime: this.debounceTime(),
-    anchorPrefix: this.onlyPrefixed() ? undefined : '',
-  }));
+  readonly options = computed<MagicScrollOptions>(() => {
+    const strat = this.strategy();
+    let selectionConfig: MagicScrollOptions;
+    if (strat === 'multi-prefix') {
+      selectionConfig = { anchorPrefixes: ['kapitel-', 'anhang-'] };
+    } else if (strat === 'explicit') {
+      selectionConfig = { anchorSelection: 'explicit' };
+    } else if (strat === 'all') {
+      selectionConfig = { anchorPrefixes: [''] };
+    } else {
+      selectionConfig = { anchorPrefixes: ['kapitel-'] };
+    }
+
+    return {
+      behavior: { interaction: this.behavior() },
+      headerOffset: this.offset(),
+      bottomOffset: this.bottomOffset(),
+      activationThreshold: this.activationThreshold(),
+      ignoreWhenInView: this.visibility(),
+      debounceTime: this.debounceTime(),
+      ...selectionConfig,
+    };
+  });
   jump(id: string) {
     const executed = this.scroll().scrollTo(id);
     this.result.set(
-      executed ? 'Scrolling initiated.' : 'Scrolling skipped: The target is already visible.',
+      executed
+        ? 'Scrolling initiated.'
+        : 'Scrolling skipped: The target is not eligible or already visible.',
     );
   }
 }
 
 @Component({
   imports: [RouterLink, ScrollOptionsPanel, ActiveZoneOverlay, MagicScrollDirective],
-  providers: [provideMagicScroll({ anchorPrefix: 'eintrag-' })],
+  providers: [provideMagicScroll({ anchorPrefixes: ['eintrag-'] })],
   template: `<h1>Navigation · Restore position</h1>
     <p>
       Open a detail page and use the browser to go back. The list loads asynchronously again and
@@ -226,7 +283,7 @@ export class DetailExample {
     ActiveZoneOverlay,
     MagicScrollDirective,
   ],
-  providers: [provideMagicScroll({ anchorPrefix: 'antrag-card-' })],
+  providers: [provideMagicScroll({ anchorPrefixes: ['antrag-card-'] })],
   styles: ['mat-drawer-content { overflow-anchor: none; }'],
   template: `<h1>Application overview · Material Drawer</h1>
     <p>

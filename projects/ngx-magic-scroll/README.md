@@ -45,23 +45,24 @@ Register defaults in `app.config.ts` or a component's providers:
 
 ```ts
 provideMagicScroll({
-  anchorPrefix: 'project-',
+  anchorPrefixes: ['project-', 'milestone-'],
+  anchorSelection: 'all',
   headerSelector: '.app-header',
   headerOffset: 16,
   behavior: { restoration: 'instant', interaction: 'smooth' },
 });
 ```
 
-The header's height is measured and observed automatically. `headerOffset` is an additional gap below it, or the full offset without a header. Defaults are an empty prefix and header selector, zero offset, a 500 ms scroll-spy debounce, instant restoration and smooth interaction.
+The header's height is measured and observed automatically. `headerOffset` is an additional gap below it, or the full offset without a header. Defaults are an empty prefix list (`['']`) and header selector, zero offset, a 500 ms scroll-spy debounce, instant restoration and smooth interaction.
 
-Child providers inherit unspecified settings. Override an individual region with `[scrollOptions]="options"`; unspecified fields still inherit. Explicit `0`, `false` and `anchorPrefix: ''` override inherited values.
+Child providers inherit unspecified settings. Override an individual region with `[scrollOptions]="options"`; unspecified fields still inherit. Explicit `0`, `false`, `anchorPrefixes: ['']` (matches all descendant IDs), and `anchorPrefixes: []` (matches no prefix) override inherited values.
 
 ```html
 <div
   magicScroll
   #scroll="magicScroll"
   [scrollSource]="projects"
-  [scrollOptions]="{ headerOffset: 24 }"
+  [scrollOptions]="{ headerOffset: 24, anchorSelection: 'explicit' }"
 >
   ...
 </div>
@@ -72,9 +73,14 @@ Child providers inherit unspecified settings. Override an individual region with
 
 Navigation, reload and the first successful asynchronous load use `behavior.restoration`. Later data changes and resize/header corrections adjust instantly to stabilize the layout. `restoreOnDataChange: false` and `preserveOnResize: false` opt out of data corrections and resize/header corrections respectively. Visibility rules are: `none`, `top`, `full` and `always` (at least one edge visible).
 
-## Optional explicit anchors
+## Anchor selection and explicit anchors
 
-No marker is needed for normal IDs. An explicit anchor participates even outside the configured prefix:
+By default (`anchorSelection: 'all'`), all descendant IDs participate unless constrained by `anchorPrefixes`.
+
+You can also configure strict explicit selection or multiple prefixes:
+
+- **Multiple prefixes**: Pass `anchorPrefixes: ['item-', 'card-']` to include elements starting with any configured prefix.
+- **Strict explicit mode**: Set `anchorSelection: 'explicit'` to ignore all prefixes and admit only elements bearing the `[scrollAnchor]` or `scrollAnchor` marker. Generated component IDs (such as Angular Material input and form-field IDs) are completely excluded.
 
 ```html
 <section id="overview" scrollAnchor>...</section>

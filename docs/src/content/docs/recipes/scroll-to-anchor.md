@@ -24,7 +24,7 @@ import {
 @Component({
   selector: 'app-project-sections',
   imports: [MagicScrollDirective, ScrollAnchorDirective],
-  providers: [provideMagicScroll({ anchorPrefix: 'project-' })],
+  providers: [provideMagicScroll({ anchorPrefixes: ['project-'] })],
   template: `
     <nav aria-label="Project sections">
       @for (id of sections; track id) {
@@ -64,7 +64,7 @@ export class ProjectSectionsComponent {
 }
 ```
 
-`anchorPrefix` includes the project sections and excludes unrelated IDs such as `planning-notes`. The explicit `scrollAnchor` includes `overview` despite its different prefix; the bound form also assigns the element's ID. Without a prefix, all descendant IDs participate and the markers are optional.
+`anchorPrefixes` includes the project sections and excludes unrelated IDs such as `planning-notes`. The explicit `scrollAnchor` includes `overview` despite its different prefix; the bound form also assigns the element's ID. Without a prefix, all descendant IDs participate and the markers are optional.
 
 `scrollTo()` scrolls smoothly by default and synchronizes the fragment. `activeAnchor()` exposes that fragment; scroll-spy updates use a 500 ms debounce by default. IDs must be unique in the document and remain stable across renders.
 

@@ -62,23 +62,46 @@ provideMagicScroll({
 
 ## A region selects its anchors
 
-By default, all descendant elements with non-empty IDs participate. This includes IDs on headings or controls, so a region can contain more anchors than your section navigation exposes.
+By default (`anchorSelection: 'all'`), all descendant elements with non-empty IDs participate. This includes IDs on headings or form controls, so a region can contain more anchors than your section navigation exposes.
 
-Use `anchorPrefix` to restrict automatic selection, and `scrollAnchor` to explicitly include an element even when its ID does not match the prefix:
+Use `anchorPrefixes` to restrict automatic selection, and `scrollAnchor` to explicitly include an element even when its ID does not match the prefix:
 
 ```html
-<div magicScroll [scrollOptions]="{ anchorPrefix: 'project-' }">
+<div magicScroll [scrollOptions]="{ anchorPrefixes: ['project-', 'milestone-'] }">
   <section id="overview" scrollAnchor>Overview...</section>
   <section id="project-planning">
     <h2 id="planning-heading">Planning</h2>
   </section>
+  <section id="milestone-alpha">Alpha release...</section>
   <section [scrollAnchor]="'project-delivery'">Delivery...</section>
 </div>
 ```
 
-The anchors here are `overview`, `project-planning` and `project-delivery`. The heading's ID is excluded. The bound marker also assigns the element's ID; import `ScrollAnchorDirective` when using either marker form.
+The anchors here are `overview`, `project-planning`, `milestone-alpha` and `project-delivery`. The heading's ID (`planning-heading`) is excluded because it matches neither prefix. The bound marker `[scrollAnchor]` also assigns the element's ID; import `ScrollAnchorDirective` when using either marker form.
 
-The same selection applies to scroll-spy tracking, initial restoration and `scrollTo()`. An element can exist in the DOM and still be unavailable to this region because it is excluded by the selection rules. Setting `anchorPrefix: ''` on a region clears an inherited prefix and includes all its descendant IDs again.
+### Multiple prefixes and strict explicit selection
+
+`magicScroll` provides versatile selection strategies:
+
+- **`anchorPrefixes`**: Specify an array of prefixes (e.g. `['project-', 'milestone-']`). Any descendant element whose ID begins with any of these prefixes participates, along with explicit `scrollAnchor` elements. Passing an empty array `anchorPrefixes: []` disables all prefix matching, allowing only explicit `scrollAnchor` markers to participate.
+- **`anchorSelection: 'explicit'`**: Enables strict explicit-only mode. In this mode, **only** elements explicitly marked with `scrollAnchor` or `[scrollAnchor]` participate in scroll-spy, initial restoration and `scrollTo()`. All other IDs—including auto-generated IDs from component libraries such as Angular Material (`mat-input-*`, `cdk-describedby-*`) or nested form controls—are strictly ignored, even if they match configured prefixes.
+- **`anchorSelection: 'all'` (default)**: Descendant elements matching any configured `anchorPrefixes` (or all descendant IDs if no prefix is set) as well as explicit `scrollAnchor` markers participate.
+
+```ts
+// Example: Strict explicit selection across the application
+provideMagicScroll({
+  anchorSelection: 'explicit',
+});
+```
+
+```html
+<!-- Per-region override supporting multiple prefixes -->
+<div magicScroll [scrollOptions]="{ anchorPrefixes: ['doc-', 'appendix-'] }">
+  ...
+</div>
+```
+
+The same selection applies to scroll-spy tracking, initial restoration and `scrollTo()`. An element can exist in the DOM and still be unavailable to this region because it is excluded by the selection rules. Setting `anchorPrefixes: ['']` on a region clears an inherited prefix and includes all its descendant IDs again.
 
 ## Each anchor belongs to its closest region
 

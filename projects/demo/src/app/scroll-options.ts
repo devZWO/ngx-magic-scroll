@@ -1,6 +1,7 @@
 import { Component, input, model } from '@angular/core';
 import { MagicScrollOptions } from '@devzwo/ngx-magic-scroll';
 export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>;
+export type AnchorStrategyOption = 'prefix' | 'multi-prefix' | 'explicit' | 'all';
 
 @Component({
   selector: 'app-scroll-options',
@@ -88,10 +89,23 @@ export type VisibilityMode = NonNullable<MagicScrollOptions['ignoreWhenInView']>
           </select></label
         >
         <label
+          >Anchor selection
+          <select
+            #strategyInput
+            [value]="strategy()"
+            (change)="setStrategy(strategyInput.value)"
+          >
+            <option value="prefix">Single prefix (kapitel-)</option>
+            <option value="multi-prefix">Multiple prefixes (kapitel-, anhang-)</option>
+            <option value="explicit">Explicit markers only (scrollAnchor)</option>
+            <option value="all">All descendant IDs</option>
+          </select></label
+        >
+        <label
           ><input
             type="checkbox"
             [checked]="onlyPrefixed()"
-            (change)="onlyPrefixed.set(!onlyPrefixed())"
+            (change)="toggleOnlyPrefixed()"
           />Only consider chapter anchors</label
         >
       }
@@ -107,6 +121,7 @@ export class ScrollOptionsPanel {
   readonly visibility = model<VisibilityMode>('none');
   readonly debounceTime = model(500);
   readonly onlyPrefixed = model(true);
+  readonly strategy = model<AnchorStrategyOption>('prefix');
   readonly showVisibility = input(false);
   readonly showSpy = input(false);
   readonly showOverlayToggle = input(true);
@@ -116,5 +131,21 @@ export class ScrollOptionsPanel {
   setVisibility(value: string) {
     if (value === 'none' || value === 'top' || value === 'full' || value === 'always')
       this.visibility.set(value);
+  }
+  setStrategy(value: string) {
+    if (
+      value === 'prefix' ||
+      value === 'multi-prefix' ||
+      value === 'explicit' ||
+      value === 'all'
+    ) {
+      this.strategy.set(value);
+      this.onlyPrefixed.set(value !== 'all');
+    }
+  }
+  toggleOnlyPrefixed() {
+    const next = !this.onlyPrefixed();
+    this.onlyPrefixed.set(next);
+    this.strategy.set(next ? 'prefix' : 'all');
   }
 }
