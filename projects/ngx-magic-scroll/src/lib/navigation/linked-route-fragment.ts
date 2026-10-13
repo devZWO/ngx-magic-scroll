@@ -57,7 +57,10 @@ export function linkedRouteFragment(): WritableSignal<string | null | undefined>
       router
         .navigateByUrl(tree, {
           replaceUrl: true,
-          state: { [MAGIC_SCROLL_ORIGIN_KEY]: MAGIC_SCROLL_ORIGIN_SCROLL_SPY },
+          state: {
+            ...history.state,
+            [MAGIC_SCROLL_ORIGIN_KEY]: MAGIC_SCROLL_ORIGIN_SCROLL_SPY,
+          },
           info: { [MAGIC_SCROLL_ORIGIN_KEY]: MAGIC_SCROLL_ORIGIN_SCROLL_SPY },
         })
         .catch((error: Error) => {

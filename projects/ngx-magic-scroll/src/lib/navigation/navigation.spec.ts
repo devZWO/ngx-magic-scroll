@@ -451,6 +451,39 @@ describe('route fragment', () => {
     });
     expect(console.log).toHaveBeenCalled();
   });
+
+  it('preserves existing developer history state when updating fragment', () => {
+    const fragment = new BehaviorSubject<string | null>('a');
+    const snapshot = { fragment: 'a' };
+    const router = {
+      createUrlTree: vi.fn(() => 'tree'),
+      navigateByUrl: vi.fn(() => Promise.resolve(true)),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ActivatedRoute, useValue: { fragment, snapshot } },
+        { provide: Router, useValue: router },
+      ],
+    });
+    window.history.replaceState({ developerData: 'custom-state', keepMe: 123 }, '');
+    try {
+      const value = TestBed.runInInjectionContext(linkedRouteFragment);
+      TestBed.tick();
+      value.set('b');
+      TestBed.tick();
+      expect(router.navigateByUrl).toHaveBeenLastCalledWith('tree', {
+        replaceUrl: true,
+        state: {
+          developerData: 'custom-state',
+          keepMe: 123,
+          __ngx_magic_scroll_origin: 'scroll-spy',
+        },
+        info: { __ngx_magic_scroll_origin: 'scroll-spy' },
+      });
+    } finally {
+      window.history.replaceState(null, '');
+    }
+  });
 });
 
 @Component({
