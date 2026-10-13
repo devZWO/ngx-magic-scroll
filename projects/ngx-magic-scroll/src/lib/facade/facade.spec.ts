@@ -207,7 +207,7 @@ it('waits for explicit undefined input, restores once, and preserves later data 
   render();
   host.source.set([3]);
   render();
-  expect(scroll.scroll).toHaveBeenCalledTimes(2);
+  expect(scroll.scroll).toHaveBeenCalledTimes(3);
 });
 
 it('supports static resolver content without a source and does not retry a missing initial anchor', () => {
@@ -784,4 +784,258 @@ it('sets liveAnchor to null on user interruption when no nearest anchor is found
   render();
 
   expect(scroll.scroll).not.toHaveBeenCalled();
+});
+
+describe('subsequent router fragment navigation', () => {
+  it('automatically scrolls to target anchor on subsequent external router navigation with restoration behavior', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
+      'item-1',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+
+    // Subsequent external router navigation
+    routeFragment.next('item-2');
+    render();
+
+    expect(scroll.scroll).toHaveBeenCalledTimes(2);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('uses configured behavior.restoration for subsequent router navigations', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.options.set({ anchorPrefix: 'item-', behavior: { restoration: 'smooth' } });
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledWith(
+      'item-1',
+      expect.objectContaining({ behavior: 'smooth' }),
+    );
+
+    routeFragment.next('item-2');
+    render();
+
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'smooth' }),
+    );
+  });
+
+  it('queues navigation when scrollSource is loading and executes once data is ready', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    // Initially loaded with item-1
+    host.source.set([1]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Source becomes loading
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    // Subsequent external router navigation occurs while loading
+    routeFragment.next('item-2');
+    render();
+
+    // Should not scroll immediately since data is not ready
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Data finishes loading
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Now it should scroll to item-2
+    expect(scroll.scroll).toHaveBeenCalledTimes(2);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('queues navigation when target DOM element is not yet rendered and executes once rendered', () => {
+    const { fixture, host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // External navigation to a dynamic anchor not yet in DOM
+    routeFragment.next('item-dynamic');
+    render();
+
+    // Not yet in DOM -> not scrolled
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Dynamic section is rendered into DOM and source updates
+    const section = document.createElement('section');
+    section.id = 'item-dynamic';
+    fixture.nativeElement.querySelector('[magicScroll]').append(section);
+    host.source.set([1, 2]);
+    render();
+
+    expect(scroll.scroll).toHaveBeenCalledTimes(2);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-dynamic',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('cancels older pending destination when a newer navigation arrives before readiness', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    // Initial item-1 pending
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // Navigate rapidly to item-2 before ready
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // Data becomes ready
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Only item-2 should be executed, not item-1
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.scroll).toHaveBeenLastCalledWith(
+      'item-2',
+      expect.objectContaining({ behavior: 'instant' }),
+    );
+  });
+
+  it('cancels pending destination when user manual interaction occurs before data readiness', () => {
+    const { host, container, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    // Navigation occurs while loading
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // User scrolls manually with mouse wheel
+    container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+
+    // Data finishes loading
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Restoration must NOT execute because user interacted
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  });
+
+  it('cancels pending destination on keyboard scroll navigation before data readiness', () => {
+    const { host, container, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // User presses ArrowDown key
+    container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+    // Data finishes loading
+    data.set([1, 2]);
+    loading.set(false);
+    render();
+
+    // Restoration must NOT execute
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  });
+
+  it('does not scroll on query-only navigation when fragment is unchanged or absent', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Emitting same fragment (e.g. from query param update)
+    routeFragment.next('item-1');
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // Emitting null fragment
+    routeFragment.next(null);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not trigger scrolling on internal scroll-spy fragment updates', () => {
+    vi.useFakeTimers();
+    const { host, container, render, scroll } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // User scrolls to item-2 (internal scroll event)
+    container.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(500);
+    render();
+
+    // Internal scroll-spy updates URL fragment, but must NOT trigger an automated scroll action
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not scroll or throw when external navigation target is missing or in another region', () => {
+    const { host, render, scroll, routeFragment } = setup('item-1');
+    host.source.set([1, 2]);
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // External navigation to non-existent target
+    routeFragment.next('non-existent');
+    render();
+    expect(scroll.scroll).toHaveBeenCalledTimes(1);
+
+    // External target in separate element outside magicScroll region
+    const outsideEl = document.createElement('div');
+    outsideEl.id = 'item-outside';
+    document.body.appendChild(outsideEl);
+    try {
+      routeFragment.next('item-outside');
+      render();
+      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+    } finally {
+      outsideEl.remove();
+    }
+  });
+
+  it('cleans up pending router navigation on directive teardown', () => {
+    const { fixture, host, render, scroll, routeFragment } = setup('item-1');
+    const loading = signal(true);
+    const data = signal<unknown[] | undefined>(undefined);
+    host.source.set({ data, isLoading: loading });
+    render();
+
+    routeFragment.next('item-2');
+    render();
+    expect(scroll.scroll).not.toHaveBeenCalled();
+
+    // Destroy fixture
+    fixture.destroy();
+
+    // Finish loading after destroy
+    data.set([1, 2]);
+    loading.set(false);
+
+    expect(scroll.scroll).not.toHaveBeenCalled();
+  });
 });

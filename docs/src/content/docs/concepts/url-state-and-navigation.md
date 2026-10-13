@@ -27,6 +27,34 @@ After scrolling settles, the region determines which section the user is current
 2. **Tall Section Reading Retention (Reading Line Fallback)**: For sections that are taller than the viewport (or long multi-paragraph articles), the section remains active while scrolling through its body (`top <= triggerLine + 1`) until a subsequent section crosses the trigger line or becomes fully visible.
 3. **Top of Page Fallback**: When scrolled above all anchors, the first anchor is selected.
 
+```mermaid
+flowchart TD
+    ScrollEvent[User scrolls in viewport/container] --> Debounce[Wait for debounceTime ms<br/><i>default: 500ms</i>]
+    Debounce --> ReadLayout[Measure Layout & Active Configuration]
+
+    subgraph BoundaryCalculation [Boundary & Trigger Line Calculation]
+        ReadLayout --> TopB["topBoundary = containerTop<br/>+ headerHeight(headerSelector)<br/>+ headerOffset"]
+        ReadLayout --> BotB["bottomBoundary = containerBottom<br/>- bottomOffset"]
+        TopB & BotB --> TrigLine["triggerLine = topBoundary +<br/>(bottomBoundary - topBoundary) * activationThreshold"]
+    end
+
+    TrigLine --> CheckContainment{"Any section fully contained in reading band?<br/><i>top >= topBoundary - 1 && bottom <= bottomBoundary + 1</i>"}
+
+    CheckContainment -- Yes --> SelectContained[Select topmost fully contained section]
+    CheckContainment -- No --> CheckTrigger{"Any section top <= triggerLine + 1?"}
+
+    CheckTrigger -- Yes --> SelectTriggered[Select most recently crossed section<br/><i>max top <= triggerLine</i>]
+    CheckTrigger -- No --> SelectFirst[Select first anchor in document]
+
+    SelectContained --> StateUpdate[Active Section Selected]
+    SelectTriggered --> StateUpdate
+    SelectFirst --> StateUpdate
+
+    StateUpdate --> ChangedCheck{"Selected anchor == activeAnchor()?"}
+    ChangedCheck -- No --> SyncFragment["Update activeAnchor() signal<br/>& update URL fragment (replaceUrl)"]
+    ChangedCheck -- Yes --> Noop[Preserve current URL fragment]
+```
+
 Scroll-spy updates are debounced by 500 ms by default (`debounceTime`). During continuous movement, the fragment can therefore lag behind the viewport until scrolling pauses. If there are no eligible candidates, the existing fragment remains unchanged.
 
 `activeAnchor()` exposes the current fragment as a signal and reacts to route-fragment changes. Use it to highlight active navigation links and scroll-spy indicators.
@@ -50,9 +78,23 @@ A call returns `false` when the target is missing, excluded, owned by another re
 
 When a region is created, it captures the route's current fragment. Once its content is ready and rendered, it attempts to restore that anchor once. This supports opening a section link, reloading it or returning to a routed list whose region is recreated.
 
-Changing only the fragment while retaining the same directive instance updates `activeAnchor()`, but does not by itself trigger another initial restoration or a general automatic scroll operation. Use `scrollTo()` for in-page interactions that should move the existing region.
-
 See [Data readiness and restoration](../data-readiness-and-restoration/) for the timing and missing-target behavior.
+
+## Subsequent router fragment navigation
+
+When external router navigation changes the URL fragment subsequently (e.g. via `[routerLink]`, programmatic `router.navigate()`, or browser history Back/Forward navigation), `MagicScrollDirective` automatically restores the scroll position to the target anchor using `behavior.restoration`.
+
+To prevent feedback loops between user-driven router navigations and the automatic scroll-spy, the library uses internal origin discrimination:
+
+```mermaid
+graph TD
+    RouterLink[RouterLink / History / router.navigate] -->|External Navigation| Router[Angular Router]
+    Router -->|Route Fragment Signal| Directive[MagicScrollDirective]
+    ScrollEvent[Scroll Event] -->|Debounced Scroll Spy| linkedRoute[linkedRouteFragment]
+    linkedRoute -->|Internal Navigation with Origin Tag| Router
+    Directive -->|Filter out Internal Origin| DestinationQueue[Pending Destination Handler]
+    DestinationQueue -->|Wait for Source Ready & DOM| ScrollExec[ScrollService.scroll]
+```
 
 ## URL updates preserve the current history entry
 

@@ -166,9 +166,18 @@ export class MagicScrollDirective {
 
   /**
    * Flag indicating whether manual user interaction (wheel, touch, or navigation keys) occurred
-   * before asynchronous data loading became ready. When true, delayed initial restoration is skipped.
+   * before asynchronous data loading became ready. When true, delayed restoration is skipped.
    */
   private userInterrupted = false;
+
+  /** Pending destination anchor awaiting data readiness or DOM rendering. */
+  private pendingDestination: string | null = this.initialAnchor ?? null;
+
+  /** Tracks the last fragment processed from route fragment synchronization. */
+  private lastProcessedFragment: string | null | undefined = undefined;
+
+  /** Tracks the last fragment initiated internally via scroll-spy or programmatic scrollTo. */
+  private lastInternalFragment: string | null = null;
 
   private target?: EventTarget;
   private timer?: ReturnType<typeof setTimeout>;
@@ -183,6 +192,7 @@ export class MagicScrollDirective {
       this.detachListeners();
       this.document.defaultView?.removeEventListener('resize', this.onResize);
       clearTimeout(this.timer);
+      this.pendingDestination = null;
     });
 
     // Phase 1: Header measurement & ResizeObserver tracking.
@@ -214,23 +224,58 @@ export class MagicScrollDirective {
       untracked(() => {
         if (!this.initialized) {
           this.initialized = true;
-          if (!this.userInterrupted) {
-            this.execute(this.initialAnchor, { behavior: this.options().behavior.restoration });
-          } else {
+          if (!this.userInterrupted && this.pendingDestination) {
+            this.execute(this.pendingDestination, {
+              behavior: this.options().behavior.restoration,
+            });
+          } else if (this.userInterrupted) {
             this.liveAnchor.set(this.calculateNearestAnchor() ?? null);
           }
-        } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
-          this.preserve('top');
+          this.pendingDestination = null;
+        } else {
+          if (this.pendingDestination && !this.userInterrupted) {
+            this.execute(this.pendingDestination, {
+              behavior: this.options().behavior.restoration,
+            });
+            this.pendingDestination = null;
+          } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
+            this.preserve('top');
+          }
         }
       });
     });
 
-    // Phase 3: Route fragment synchronization to liveAnchor.
-    // When the route fragment changes externally (e.g., router navigation), synchronize liveAnchor.
+    // Phase 3: Route fragment synchronization to liveAnchor and external navigation handling.
+    // When the route fragment changes externally (e.g., router navigation), synchronize liveAnchor
+    // and trigger scroll restoration to the target element.
     effect(() => {
       const frag = this.fragment();
       untracked(() => {
+        const prev = this.lastProcessedFragment;
+        this.lastProcessedFragment = frag;
         this.liveAnchor.set(frag);
+
+        if (prev === undefined) {
+          return;
+        }
+
+        if (frag) {
+          const isInternal = this.lastInternalFragment === frag;
+          this.lastInternalFragment = null;
+          if (!isInternal) {
+            this.userInterrupted = false;
+            this.pendingDestination = frag;
+            const source = this.scrollSource();
+            const state = readScrollSource(source);
+            if (this.initialized && state.ready) {
+              if (this.execute(frag, { behavior: this.options().behavior.restoration })) {
+                this.pendingDestination = null;
+              }
+            }
+          }
+        } else {
+          this.pendingDestination = null;
+        }
       });
     });
 
@@ -239,7 +284,10 @@ export class MagicScrollDirective {
     effect(() => {
       if (!this.scrollRevision()) return;
       const anchor = this.calculateNearestAnchor();
-      if (anchor) this.fragment.set(anchor);
+      if (anchor) {
+        this.lastInternalFragment = anchor;
+        this.fragment.set(anchor);
+      }
     });
   }
 
@@ -263,6 +311,8 @@ export class MagicScrollDirective {
     if (executed) {
       const clean = anchor.replace(/^#/, '');
       this.liveAnchor.set(clean);
+      this.lastInternalFragment = clean;
+      this.pendingDestination = null;
       this.fragment.set(clean);
     }
     return executed;
@@ -385,15 +435,16 @@ export class MagicScrollDirective {
 
   /**
    * Intercepts manual user gestures (`wheel`, `touchstart`, `touchmove`) to flag user interaction
-   * and cancel delayed initial restorations prior to data readiness.
+   * and cancel delayed restorations prior to data readiness.
    */
   private readonly onUserIntent = () => {
     this.userInterrupted = true;
+    this.pendingDestination = null;
   };
 
   /**
    * Intercepts navigation keyboard events (`ArrowUp`, `ArrowDown`, `PageUp`, `PageDown`, `Home`, `End`, `Space`).
-   * Cancels pending initial restoration when navigation occurs within the relevant scroll context
+   * Cancels pending restoration when navigation occurs within the relevant scroll context
    * while safely ignoring interactions on editable input elements.
    */
   private readonly onKeyDown = (event: Event) => {
@@ -409,6 +460,7 @@ export class MagicScrollDirective {
       (scrollable ? scrollable === targetEl || scrollable.contains(targetEl) : true);
     if (isInsideContext) {
       this.userInterrupted = true;
+      this.pendingDestination = null;
     }
   };
 

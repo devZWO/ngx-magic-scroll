@@ -121,7 +121,7 @@ describe('recipe integration: real Angular rxResource', () => {
     await test.settle();
     expect(test.scroll).toHaveBeenLastCalledWith(
       'item-1',
-      expect.objectContaining({ behavior: 'instant', ignoreWhenInView: 'top' }),
+      expect.objectContaining({ behavior: 'instant' }),
     );
   });
 
@@ -219,7 +219,7 @@ describe('recipe integration: real NgRx Signal Store', () => {
     test.render();
     expect(test.scroll).toHaveBeenLastCalledWith(
       'item-1',
-      expect.objectContaining({ ignoreWhenInView: 'top' }),
+      expect.objectContaining({ behavior: 'instant' }),
     );
   });
 });

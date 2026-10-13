@@ -407,7 +407,7 @@ it('keeps the active section while scrolling through a long section until the ne
 });
 
 describe('route fragment', () => {
-  it('reads external changes, preserves parameters, clears fragments and handles failed navigation', async () => {
+  it('reads external changes, preserves parameters, tags internal navigation, clears fragments and handles failed navigation', async () => {
     const fragment = new BehaviorSubject<string | null>('a');
     const snapshot = { fragment: 'a' };
     const router = {
@@ -429,6 +429,11 @@ describe('route fragment', () => {
       relativeTo: expect.anything(),
       fragment: 'b',
       queryParamsHandling: 'preserve',
+    });
+    expect(router.navigateByUrl).toHaveBeenLastCalledWith('tree', {
+      replaceUrl: true,
+      state: { __ngx_magic_scroll_origin: 'scroll-spy' },
+      info: { __ngx_magic_scroll_origin: 'scroll-spy' },
     });
     snapshot.fragment = 'c';
     fragment.next('c');
