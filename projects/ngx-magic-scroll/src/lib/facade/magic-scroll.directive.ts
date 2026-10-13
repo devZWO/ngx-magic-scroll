@@ -183,6 +183,10 @@ export class MagicScrollDirective {
 
   private target?: EventTarget;
   private timer?: ReturnType<typeof setTimeout>;
+  /** Active DOM mutation observer used to retry pending scroll destinations once target anchor elements are inserted. */
+  private retryObserver?: MutationObserver;
+  /** Timeout timer bounding the lifetime of destination retries to prevent memory leaks from non-existent anchors. */
+  private retryTimeoutTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -194,6 +198,7 @@ export class MagicScrollDirective {
       this.detachListeners();
       this.document.defaultView?.removeEventListener('resize', this.onResize);
       clearTimeout(this.timer);
+      this.cancelDestinationRetry();
       this.pendingDestination = null;
     });
 
@@ -219,6 +224,12 @@ export class MagicScrollDirective {
 
     // Phase 2: Asynchronous scrollSource readiness, initial restoration, and data-change preservation.
     // Untracked execution guarantees execution triggers strictly on scrollSource readiness transitions.
+    //
+    // Note for developers: When scrollSource resolves (e.g. data loaded), target DOM elements may not
+    // yet be rendered into the DOM (e.g. inside @for loops or child components).
+    // Rather than discarding pendingDestination when execute() returns false (element not found),
+    // we retain pendingDestination and schedule a bounded DOM MutationObserver retry to execute
+    // immediately once child elements/anchor attributes are attached to the host DOM.
     afterRenderEffect(() => {
       const source = this.scrollSource();
       const state = readScrollSource(source);
@@ -226,22 +237,23 @@ export class MagicScrollDirective {
       untracked(() => {
         if (!this.initialized) {
           this.initialized = true;
-          if (!this.userInterrupted && this.pendingDestination) {
-            this.execute(this.pendingDestination, {
-              behavior: this.options().behavior.restoration,
-            });
-          } else if (this.userInterrupted) {
+          if (!this.userInterrupted) {
+            if (!this.tryExecutePendingDestination(this.options().behavior.restoration)) {
+              if (this.pendingDestination) this.scheduleDestinationRetry();
+            }
+          } else {
             this.liveAnchor.set(this.calculateNearestAnchor() ?? null);
+            this.cancelDestinationRetry();
           }
-          this.pendingDestination = null;
         } else {
-          if (this.pendingDestination && !this.userInterrupted) {
-            this.execute(this.pendingDestination, {
-              behavior: this.options().behavior.restoration,
-            });
-            this.pendingDestination = null;
-          } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
-            this.preserve('top');
+          if (!this.userInterrupted) {
+            if (!this.tryExecutePendingDestination(this.options().behavior.restoration)) {
+              if (this.pendingDestination) {
+                this.scheduleDestinationRetry();
+              } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
+                this.preserve('top');
+              }
+            }
           }
         }
       });
@@ -249,7 +261,8 @@ export class MagicScrollDirective {
 
     // Phase 3: Route fragment synchronization to liveAnchor and external navigation handling.
     // When the route fragment changes externally (e.g., router navigation), synchronize liveAnchor
-    // and trigger scroll restoration to the target element.
+    // and trigger scroll restoration to the target element. If the target DOM element is not yet attached,
+    // pendingDestination is preserved and scheduled for retry via MutationObserver.
     effect(() => {
       const frag = this.fragment();
       untracked(() => {
@@ -268,13 +281,16 @@ export class MagicScrollDirective {
             const source = this.scrollSource();
             const state = readScrollSource(source);
             if (this.initialized && state.ready) {
-              if (this.execute(frag, { behavior: this.options().behavior.restoration })) {
-                this.pendingDestination = null;
+              if (!this.tryExecutePendingDestination(this.options().behavior.restoration)) {
+                this.scheduleDestinationRetry();
               }
+            } else {
+              this.cancelDestinationRetry();
             }
           }
         } else {
           this.pendingDestination = null;
+          this.cancelDestinationRetry();
         }
       });
     });
@@ -333,9 +349,80 @@ export class MagicScrollDirective {
       const clean = anchor.replace(/^#/, '');
       this.liveAnchor.set(clean);
       this.pendingDestination = null;
+      this.cancelDestinationRetry();
       this.fragment.set(clean);
     }
     return executed;
+  }
+
+  /**
+   * Attempts to execute navigation to the pending destination anchor.
+   *
+   * @param behavior - The scroll animation behavior to apply (`instant` or `smooth`).
+   * @returns `true` if the target anchor element was found in the DOM and scrolling was initiated; `false` otherwise.
+   *
+   * @remarks
+   * If execution succeeds, `pendingDestination` is cleared and active retry observers/timers are canceled.
+   * If target elements are not yet present in the DOM (e.g. data is ready before DOM elements render),
+   * `pendingDestination` remains queued so subsequent DOM updates can retry.
+   */
+  private tryExecutePendingDestination(behavior: ScrollBehavior): boolean {
+    if (!this.pendingDestination) return false;
+    if (this.execute(this.pendingDestination, { behavior })) {
+      this.pendingDestination = null;
+      this.cancelDestinationRetry();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Schedules a bounded retry mechanism observing DOM additions and attribute modifications
+   * within the directive host to re-attempt scrolling when the target anchor element is rendered.
+   *
+   * @remarks
+   * Asynchronous rendering cycles (such as Angular `@for` loops, `@if` blocks, or asynchronous child components)
+   * often resolve data/signals (`scrollSource`) before child DOM anchor nodes are attached to the document.
+   *
+   * To prevent dropped navigations without polling or manual timeouts, a `MutationObserver` watches host mutations
+   * for child node insertions and anchor attribute modifications (`id`, `data-scroll-anchor`). When DOM mutations
+   * occur and the scroll source is ready, destination execution is re-attempted.
+   *
+   * A bounded 1000ms safety timeout safeguards against indefinite observation if a non-existent anchor ID was requested.
+   */
+  private scheduleDestinationRetry(): void {
+    if (!this.retryObserver) {
+      this.retryObserver = new MutationObserver(() => {
+        const state = readScrollSource(this.scrollSource());
+        if (state.ready) {
+          this.tryExecutePendingDestination(this.options().behavior.restoration);
+        }
+      });
+      this.retryObserver.observe(this.host, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['id', 'data-scroll-anchor'],
+      });
+    }
+    clearTimeout(this.retryTimeoutTimer);
+    this.retryTimeoutTimer = setTimeout(() => this.cancelDestinationRetry(), 1000);
+  }
+
+  /**
+   * Disconnects the DOM mutation observer and clears active retry timers.
+   *
+   * @remarks
+   * Invoked whenever destination execution succeeds, a user interrupts navigation (via scroll, touch, or keyboard),
+   * an explicit navigation supersedes the pending target, or the directive is destroyed.
+   */
+  private cancelDestinationRetry(): void {
+    if (this.retryObserver) {
+      this.retryObserver.disconnect();
+      this.retryObserver = undefined;
+    }
+    clearTimeout(this.retryTimeoutTimer);
+    this.retryTimeoutTimer = undefined;
   }
 
   /**
@@ -460,6 +547,7 @@ export class MagicScrollDirective {
   private readonly onUserIntent = () => {
     this.userInterrupted = true;
     this.pendingDestination = null;
+    this.cancelDestinationRetry();
   };
 
   /**
@@ -481,6 +569,7 @@ export class MagicScrollDirective {
     if (isInsideContext) {
       this.userInterrupted = true;
       this.pendingDestination = null;
+      this.cancelDestinationRetry();
     }
   };
 
