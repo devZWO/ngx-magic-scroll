@@ -10,6 +10,10 @@ export default defineConfig({
     mermaid(),
     starlight({
       title: 'ngx-magic-scroll',
+      favicon: '/ngx-magic-scroll-maskotchen_128x128.ico',
+      logo: {
+        src: './src/assets/ngx-magic-scroll-maskotchen.png',
+      },
       social: [
         {
           icon: 'github',

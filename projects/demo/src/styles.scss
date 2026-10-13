@@ -21,8 +21,14 @@ header {
   background: #203047;
   color: white;
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 40px;
+}
+header .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 header .docs-link {
   margin-inline-start: auto;
