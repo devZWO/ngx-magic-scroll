@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "astro-mermaid": "^2.1.0",
-    "mermaid": "^12.1.0",
+    "mermaid": "^11.17.2",
     "starlight-typedoc": "^0.23.0",
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.12.0"
