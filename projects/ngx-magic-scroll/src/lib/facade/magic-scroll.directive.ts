@@ -94,7 +94,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
  *    - Sequenced `afterRenderEffect` execution blocks guarantee sticky header measurement and `ResizeObserver`
  *      monitoring are active before initial fragment restoration and data preservation execute.
  * 4. **Preservation & Realignment Engine**:
- *    - Automatic realignments (`preserve('top')`) on data updates and container/header resizes based on the live active section.
+ *    - Automatic realignments (`preserve()`) on data updates and container/header resizes based on the live active section.
  * 5. **Container & Anchor Scoping**:
  *    - Automatic scroll container resolution (window vs scrollable element) and hierarchical anchor ownership isolation.
  *
@@ -175,6 +175,14 @@ export class MagicScrollDirective {
    */
   private userInterrupted = false;
 
+  /**
+   * Region-local anchor-relative pixel displacement tracking the distance between
+   * the active section's top boundary and the visible activation reading boundary.
+   * Preserved during automatic reflows (data prepending, container/header resizing)
+   * to keep the reader's view stable without jumping back to section headings.
+   */
+  private savedDisplacement = 0;
+
   /** Pending destination anchor awaiting data readiness or DOM rendering. */
   private pendingDestination: string | null = this.initialAnchor ?? null;
 
@@ -242,7 +250,9 @@ export class MagicScrollDirective {
               if (this.pendingDestination) this.scheduleDestinationRetry();
             }
           } else {
-            this.liveAnchor.set(this.calculateNearestAnchor() ?? null);
+            const nearest = this.calculateNearestAnchor() ?? null;
+            this.liveAnchor.set(nearest);
+            if (nearest) this.updateSavedDisplacement(nearest);
             this.cancelDestinationRetry();
           }
         } else {
@@ -251,7 +261,7 @@ export class MagicScrollDirective {
               if (this.pendingDestination) {
                 this.scheduleDestinationRetry();
               } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
-                this.preserve('top');
+                this.preserve();
               }
             }
           }
@@ -277,6 +287,7 @@ export class MagicScrollDirective {
         if (frag) {
           if (!this.isInternalNavigation()) {
             this.userInterrupted = false;
+            this.savedDisplacement = 0;
             this.pendingDestination = frag;
             const source = this.scrollSource();
             const state = readScrollSource(source);
@@ -289,6 +300,7 @@ export class MagicScrollDirective {
             }
           }
         } else {
+          this.savedDisplacement = 0;
           this.pendingDestination = null;
           this.cancelDestinationRetry();
         }
@@ -344,10 +356,12 @@ export class MagicScrollDirective {
       behavior: this.options().behavior.interaction,
       ignoreWhenInView: this.options().ignoreWhenInView,
       ...options,
+      displacement: 0,
     });
     if (executed) {
       const clean = anchor.replace(/^#/, '');
       this.liveAnchor.set(clean);
+      this.savedDisplacement = 0;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
       this.fragment.set(clean);
@@ -368,7 +382,8 @@ export class MagicScrollDirective {
    */
   private tryExecutePendingDestination(behavior: ScrollBehavior): boolean {
     if (!this.pendingDestination) return false;
-    if (this.execute(this.pendingDestination, { behavior })) {
+    if (this.execute(this.pendingDestination, { behavior, displacement: 0 })) {
+      this.savedDisplacement = 0;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
       return true;
@@ -494,7 +509,7 @@ export class MagicScrollDirective {
   /**
    * Dispatches scrolling to the underlying {@link ScrollService} after validating target presence.
    */
-  private execute(anchor: string | null | undefined, options: MagicScrollToOptions): boolean {
+  private execute(anchor: string | null | undefined, options: ScrollOptions): boolean {
     if (!anchor || !this.anchors().some((el) => el.id === anchor.replace(/^#/, ''))) return false;
     return this.service.scroll(anchor, {
       scrollable: this.scrollable(),
@@ -504,18 +519,43 @@ export class MagicScrollDirective {
   }
 
   /**
-   * Realigns the viewport instantly to preserve position during asynchronous data updates
-   * or container / header dimension changes.
+   * Realigns the viewport instantly to preserve anchor-relative reading position
+   * during asynchronous data updates, container resizes, or header dimension changes.
    *
    * @remarks
-   * Targets `liveAnchor` (the real-time visible section) rather than `fragment` (the debounced URL fragment)
-   * to ensure rapid data or layout shifts during continuous scrolling maintain the user's active view
-   * rather than jumping back to a stale URL anchor.
+   * Targets `liveAnchor` (the real-time visible section) and restores `savedDisplacement`
+   * (the pixel offset between the anchor's top and the container's top boundary).
+   * If native browser scroll anchoring (`overflow-anchor`) has already adjusted scroll position,
+   * delta computes to 0, inherently avoiding double-compensation.
+   * If the active anchor element is no longer present in the DOM, realignment is skipped deterministically.
    */
-  private preserve(ignoreWhenInView: ScrollOptions['ignoreWhenInView'] = 'none'): void {
+  private preserve(): void {
     if (this.initialized) {
-      this.execute(this.liveAnchor(), { behavior: 'instant', ignoreWhenInView });
+      const anchor = this.liveAnchor();
+      if (!anchor) return;
+      this.execute(anchor, {
+        behavior: 'instant',
+        displacement: this.savedDisplacement,
+      });
     }
+  }
+
+  /**
+   * Captures and stores the pixel displacement between the active anchor's top edge
+   * and the visible activation reading boundary (`containerTop + topOffset`).
+   */
+  private updateSavedDisplacement(anchorId: string): void {
+    const clean = anchorId.replace(/^#/, '');
+    const anchorEl = this.anchors().find((el) => el.id === clean);
+    if (!anchorEl) return;
+    const scrollable = this.scrollable();
+    const isDocument =
+      !scrollable ||
+      scrollable === this.document.documentElement ||
+      scrollable === this.document.body;
+    const containerTop = isDocument ? 0 : scrollable.getBoundingClientRect().top;
+    const topBoundary = containerTop + this.offset();
+    this.savedDisplacement = anchorEl.getBoundingClientRect().top - topBoundary;
   }
 
   /**
@@ -596,7 +636,10 @@ export class MagicScrollDirective {
   private readonly onScroll = () => {
     if (!this.initialized) return;
     const anchor = this.calculateNearestAnchor();
-    if (anchor) this.liveAnchor.set(anchor);
+    if (anchor) {
+      this.liveAnchor.set(anchor);
+      this.updateSavedDisplacement(anchor);
+    }
     clearTimeout(this.timer);
     this.timer = setTimeout(
       () => this.scrollRevision.update((revision) => revision + 1),

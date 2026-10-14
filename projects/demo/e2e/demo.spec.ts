@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, aligned, atOffset } from './fixtures';
+import { test, aligned, atOffset, placeAnchor } from './fixtures';
 test('document synchronizes scroll, fragment and active anchor without adding history', async ({
   page,
 }) => {
@@ -223,4 +223,31 @@ test('drawer options preserve the visible anchor when data is inserted above it'
         ),
     )
     .toBeGreaterThan(480);
+});
+
+test('drawer preserves reading displacement within a tall card under native overflow anchoring without double compensation', async ({
+  page,
+}) => {
+  await page.goto('/drawer#antrag-card-4');
+  await aligned(page, '#antrag-card-4', 'mat-drawer-content');
+  await page.locator('mat-drawer-content').evaluate((el) => (el.style.overflowAnchor = 'auto'));
+
+  // Expand the card details to make it tall and scroll into its body
+  await page.locator('#antrag-card-4 summary').click();
+  await placeAnchor(page, '#antrag-card-4', 'mat-drawer-content', -120);
+  await atOffset(page, '#antrag-card-4', 'mat-drawer-content', -120);
+
+  // Prepend content above while native scroll anchoring is active
+  await page.getByRole('button', { name: 'Insert three applications at the top' }).click();
+  await expect(page.locator('#antrag-card--3')).toBeAttached();
+
+  // Verify the saved relative offset inside the card is unchanged without double compensation
+  await atOffset(page, '#antrag-card-4', 'mat-drawer-content', -120);
+  await expect(page).toHaveURL(/#antrag-card-4$/);
+
+  // Additional prepend confirms stability across multiple data mutations
+  await page.getByRole('button', { name: 'Insert three applications at the top' }).click();
+  await expect(page.locator('#antrag-card--6')).toBeAttached();
+  await atOffset(page, '#antrag-card-4', 'mat-drawer-content', -120);
+  await expect(page).toHaveURL(/#antrag-card-4$/);
 });

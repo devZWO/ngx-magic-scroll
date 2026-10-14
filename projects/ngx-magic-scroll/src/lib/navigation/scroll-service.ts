@@ -27,6 +27,12 @@ export interface ScrollOptions {
    * Defaults to 20 pixels.
    */
   topOffset?: number;
+  /**
+   * Target anchor-relative pixel displacement relative to the top offset boundary.
+   * Negative values position the element higher (scrolled into), positive values lower.
+   * Defaults to 0 (element top aligned to topOffset).
+   */
+  displacement?: number;
 }
 
 /**
@@ -98,9 +104,20 @@ export class ScrollService {
       return false;
     }
 
+    const displacement = options?.displacement ?? 0;
+    const currentDisplacement = rect.top - containerTop - topOffset;
+    const delta = currentDisplacement - displacement;
+
+    // Viewport-relative boundary clamping ensures scrolling stays within valid container limits.
+    const maxScrollTop =
+      scrollable.scrollHeight > 0 && viewportHeight > 0
+        ? Math.max(0, scrollable.scrollHeight - viewportHeight)
+        : Infinity;
+    const targetScrollTop = Math.min(Math.max(scrollable.scrollTop + delta, 0), maxScrollTop);
+
     // One operation keeps offsets accurate during smooth scrolling and only moves the selected container.
     scrollable.scrollTo({
-      top: scrollable.scrollTop + rect.top - containerTop - topOffset,
+      top: targetScrollTop,
       behavior,
     });
 
