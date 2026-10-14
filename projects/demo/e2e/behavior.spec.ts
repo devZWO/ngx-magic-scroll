@@ -133,6 +133,11 @@ test('anchor selection strategy options switch between prefixes and explicit-onl
   const matId = await matInput.getAttribute('id');
   expect(matId).toBeTruthy();
 
+  // Positioning the generated input must not discover matId as anchor in prefix mode; an eligible section is selected instead
+  await placeAnchor(page, `#${matId}`, '.viewport', 0);
+  await expect(page).toHaveURL(/#kapitel-3$/);
+  await expect(page.locator('output')).toHaveText('kapitel-3');
+
   // In default single prefix mode: explicit marker spezial-notiz is eligible
   await page.getByRole('button', { name: 'spezial-notiz', exact: true }).click();
   await aligned(page, '#spezial-notiz', '.viewport');
@@ -147,7 +152,14 @@ test('anchor selection strategy options switch between prefixes and explicit-onl
   // Switch to explicit-only mode: only explicit scrollAnchor markers are eligible (kapitel-4 is ignored)
   await page.getByLabel('Anchor selection').selectOption('explicit');
   await page.getByRole('button', { name: 'kapitel-4', exact: true }).click();
-  await expect(page.getByRole('status', { name: 'Scroll result' })).toContainText('Scrolling skipped');
+  await expect(page.getByRole('status', { name: 'Scroll result' })).toContainText(
+    'Scrolling skipped',
+  );
+
+  // Positioning the generated input in explicit mode must not select matId; the only explicit marker spezial-notiz is selected
+  await placeAnchor(page, `#${matId}`, '.viewport', 0);
+  await expect(page).toHaveURL(/#spezial-notiz$/);
+  await expect(page.locator('output')).toHaveText('spezial-notiz');
 
   // Explicit target works in explicit mode
   await page.getByRole('button', { name: 'spezial-notiz', exact: true }).click();
