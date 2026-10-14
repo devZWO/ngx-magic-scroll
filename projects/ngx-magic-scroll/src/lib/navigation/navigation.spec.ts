@@ -59,6 +59,60 @@ describe('ScrollService', () => {
       behavior: 'smooth',
     });
   });
+
+  it('restores anchor-relative displacement and clamps target scroll within scrollable bounds', () => {
+    const service = TestBed.inject(ScrollService);
+    const container = element('container', 100, 600);
+    Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true });
+    Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true });
+    Object.defineProperty(container, 'scrollTop', { value: 400, writable: true, configurable: true });
+    container.scrollTo = vi.fn();
+
+    // Target is currently at top: -100 relative to document, so rect.top = -100.
+    // containerTop = 100, topOffset = 20.
+    // currentDisplacement = -100 - 100 - 20 = -220.
+    // If target displacement is -300: delta = -220 - (-300) = +80.
+    // targetScrollTop = 400 + 80 = 480.
+    element('card-long', -100, 1100);
+    expect(
+      service.scroll('card-long', {
+        scrollable: container,
+        topOffset: 20,
+        displacement: -300,
+        behavior: 'instant',
+      }),
+    ).toBe(true);
+    expect(container.scrollTo).toHaveBeenCalledWith({
+      top: 480,
+      behavior: 'instant',
+    });
+
+    // Test clamping at top bound (0)
+    expect(
+      service.scroll('card-long', {
+        scrollable: container,
+        topOffset: 20,
+        displacement: 1000, // Large positive displacement would compute negative scrollTop
+      }),
+    ).toBe(true);
+    expect(container.scrollTo).toHaveBeenLastCalledWith({
+      top: 0,
+      behavior: 'instant',
+    });
+
+    // Test clamping at bottom bound (scrollHeight - clientHeight = 2000 - 500 = 1500)
+    expect(
+      service.scroll('card-long', {
+        scrollable: container,
+        topOffset: 20,
+        displacement: -5000, // Large negative displacement would exceed maxScrollTop
+      }),
+    ).toBe(true);
+    expect(container.scrollTo).toHaveBeenLastCalledWith({
+      top: 1500,
+      behavior: 'instant',
+    });
+  });
   it.each([
     ['none', 120, 180, true],
     ['top', 120, 180, false],

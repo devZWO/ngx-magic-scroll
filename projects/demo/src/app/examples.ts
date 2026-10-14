@@ -341,11 +341,38 @@ export class DetailExample {
           @for (id of resource.value(); track id) {
             <section [id]="'antrag-card-' + id">
               <h2>Application {{ id }}</h2>
-              <p>Utility connection · Pending processing</p>
-              <details>
-                <summary>Expand application</summary>
-                <p>Contact and connection details for application {{ id }}</p>
-              </details>
+              <p>Utility connection · Pending processing · Reference #{{ id }}</p>
+              <div class="card-body">
+                <p>
+                  Technical review in progress for electrical grid integration, meter installation,
+                  and low-voltage distribution feeder connection.
+                </p>
+                <p>
+                  Documents submitted: Grid layout schematics, certified contractor documentation,
+                  compliance inspection certificates, and structural clearance notes.
+                </p>
+                <details>
+                  <summary>View extended specifications and timeline</summary>
+                  <div class="details-content">
+                    <p>
+                      Phase 1 (Completed): Initial site survey and connection capacity calculation.
+                    </p>
+                    <p>
+                      Phase 2 (In Review): Cable route planning, sub-distribution panel sizing, and
+                      safety disconnect coordination.
+                    </p>
+                    <p>
+                      Phase 3 (Scheduled): Field technician inspection, smart meter commissioning,
+                      and formal grid activation.
+                    </p>
+                    <p>
+                      <em>Reading Position Note:</em> When scrolling halfway through this card,
+                      automatic reflows (such as inserting applications at the top) preserve your
+                      relative reading offset without jumping back to the heading.
+                    </p>
+                  </div>
+                </details>
+              </div>
               <a [routerLink]="['/drawer/detail', id]" queryParamsHandling="preserve"
                 >Open application {{ id }}</a
               >

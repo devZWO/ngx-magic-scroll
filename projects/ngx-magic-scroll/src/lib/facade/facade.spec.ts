@@ -12,6 +12,7 @@ import {
 } from './magic-scroll-options';
 import { NO_SCROLL_SOURCE, readScrollSource, ScrollSource } from './scroll-source';
 import { ScrollService } from '../navigation/scroll-service';
+import { NearestAnchorProvider } from '../navigation/nearest-anchor.provider';
 
 const rect = (top: number, height = 30) => ({
   top,
@@ -1626,6 +1627,106 @@ describe('subsequent router fragment navigation', () => {
       }).not.toThrow();
 
       expect(scroll.scroll).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Section-Relative Position Preservation (Issue #5 / Proposal 3b)', () => {
+    it('captures anchor-relative displacement on scroll and restores exact displacement on data updates', () => {
+      const { container, region, host, render, scroll } = setup('item-1');
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith(
+        'item-1',
+        expect.objectContaining({ behavior: 'instant', displacement: 0 }),
+      );
+
+      // item-1 is a tall card spanning past viewport; place all other anchors offscreen
+      region.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+        el.getBoundingClientRect = () => (el.id === 'item-1' ? rect(-250, 1000) : rect(2000, 2500));
+      });
+
+      // Simulate user scrolling 350px deep into item-1
+      // container top = 100, offset = 0, topBoundary = 100.
+      // item-1 top = -250 => displacement = -250 - 100 = -350.
+      container.dispatchEvent(new Event('scroll'));
+
+      // New data items prepended
+      host.source.set([1, 2, 3]);
+      render();
+
+      // Data reflow should preserve the -350px displacement
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-1',
+        expect.objectContaining({
+          behavior: 'instant',
+          displacement: -350,
+        }),
+      );
+    });
+
+    it('resets savedDisplacement to 0 on explicit scrollTo and external router navigation', () => {
+      const { container, region, host, render, scroll, routeFragment, router } = setup('item-1');
+      host.source.set([1]);
+      render();
+
+      // Position item-1 active, others offscreen
+      region.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+        el.getBoundingClientRect = () => (el.id === 'item-1' ? rect(-200, 800) : rect(2000, 2500));
+      });
+      container.dispatchEvent(new Event('scroll'));
+
+      // Explicit navigation to item-2
+      host.scroll().scrollTo('item-2');
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-2',
+        expect.objectContaining({ displacement: 0 }),
+      );
+
+      // Subsequent external router fragment navigation to item-1 also resets displacement
+      router.setNavigation(undefined, 'imperative');
+      routeFragment.next('other');
+      render();
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'other',
+        expect.objectContaining({ displacement: 0 }),
+      );
+    });
+
+    it('covers document-level scrolling displacement, missing anchors, and null liveAnchor preservation', () => {
+      const { region, host, render, scroll } = setup(null);
+      host.source.set([]);
+      host.overflow.set('visible');
+      render();
+
+      // Trigger resize when liveAnchor is null (line 535: if (!anchor) return)
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnResize: true });
+      window.dispatchEvent(new Event('resize'));
+      render();
+
+      // Document-level scrolling: container is document
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      item1.getBoundingClientRect = () => rect(200, 800);
+      region.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+        el.getBoundingClientRect = () => (el.id === 'item-1' ? rect(200, 800) : rect(2000, 2500));
+      });
+
+      document.dispatchEvent(new Event('scroll'));
+
+      // Data change preserves document displacement
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-1',
+        expect.objectContaining({
+          displacement: 200,
+        }),
+      );
+
+      // Trigger scroll when nearest returns an unlisted ghost anchor (line 551: if (!anchorEl) return)
+      vi.spyOn(NearestAnchorProvider.prototype, 'getNearestAnchor').mockReturnValueOnce('ghost-anchor');
+      document.dispatchEvent(new Event('scroll'));
     });
   });
 });
