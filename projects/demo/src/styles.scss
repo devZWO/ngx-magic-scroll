@@ -104,3 +104,26 @@ mat-drawer-content {
   padding: 8px;
   max-width: 100%;
 }
+.option-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.option-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.checkbox-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.checkbox-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}

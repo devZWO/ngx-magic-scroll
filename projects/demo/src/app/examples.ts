@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { delay, map, of, timer } from 'rxjs';
 import { AnchorStrategyOption, ScrollOptionsPanel, VisibilityMode } from './scroll-options';
 import { ActiveZoneOverlay } from './active-zone-overlay';
+import { ParamHelpButton } from './param-help';
 import {
   MagicScrollDirective,
   MagicScrollOptions,
@@ -286,6 +287,7 @@ export class DetailExample {
     ScrollOptionsPanel,
     ActiveZoneOverlay,
     MagicScrollDirective,
+    ParamHelpButton,
   ],
   providers: [provideMagicScroll({ anchorPrefixes: ['antrag-card-'] })],
   styles: ['mat-drawer-content { overflow-anchor: none; }'],
@@ -300,13 +302,17 @@ export class DetailExample {
       [(activationThreshold)]="activationThreshold"
       [(overlay)]="showOverlay"
     />
-    <label
-      ><input
-        type="checkbox"
-        [checked]="restoreChanges()"
-        (change)="restoreChanges.set(!restoreChanges())"
-      />Preserve anchor on data changes</label
-    >
+    <div class="option-item checkbox-item" style="margin-block: 12px">
+      <label for="drawer-restore-changes" class="checkbox-label"
+        ><input
+          id="drawer-restore-changes"
+          type="checkbox"
+          [checked]="restoreChanges()"
+          (change)="restoreChanges.set(!restoreChanges())"
+        />Preserve anchor on data changes</label
+      >
+      <app-param-help paramId="restoreOnDataChange" />
+    </div>
     <button (click)="prepend.update(addThree)">Insert three applications at the top</button>
     <button (click)="drawer.toggle()">Toggle navigation</button>
     <button (click)="loadMore()">Load more applications</button>
