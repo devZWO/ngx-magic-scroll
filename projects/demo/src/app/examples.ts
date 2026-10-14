@@ -38,6 +38,7 @@ import {
       [(strategy)]="strategy"
       [showVisibility]="true"
       [showSpy]="true"
+      [showStrategy]="true"
     />
     <p role="status" aria-label="Scroll result">{{ result() }}</p>
     <nav aria-label="Sections">
@@ -70,7 +71,10 @@ import {
             }
             @if (id === 'kapitel-2') {
               <div id="anhang-detail" class="demo-appendix">
-                <p><strong>Appendix anchor (anhang-):</strong> Eligible in multi-prefix and all modes.</p>
+                <p>
+                  <strong>Appendix anchor (anhang-):</strong> Eligible in multi-prefix and all
+                  modes.
+                </p>
               </div>
               <form class="demo-material-form" (submit)="$event.preventDefault()">
                 <mat-form-field appearance="outline">

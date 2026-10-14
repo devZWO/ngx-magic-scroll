@@ -88,13 +88,11 @@ export type AnchorStrategyOption = 'prefix' | 'multi-prefix' | 'explicit' | 'all
             <option value="1000">1000 ms</option>
           </select></label
         >
+      }
+      @if (showStrategy()) {
         <label
           >Anchor selection
-          <select
-            #strategyInput
-            [value]="strategy()"
-            (change)="setStrategy(strategyInput.value)"
-          >
+          <select #strategyInput [value]="strategy()" (change)="setStrategy(strategyInput.value)">
             <option value="prefix">Single prefix (kapitel-)</option>
             <option value="multi-prefix">Multiple prefixes (kapitel-, anhang-)</option>
             <option value="explicit">Explicit markers only (scrollAnchor)</option>
@@ -102,11 +100,8 @@ export type AnchorStrategyOption = 'prefix' | 'multi-prefix' | 'explicit' | 'all
           </select></label
         >
         <label
-          ><input
-            type="checkbox"
-            [checked]="onlyPrefixed()"
-            (change)="toggleOnlyPrefixed()"
-          />Only consider chapter anchors</label
+          ><input type="checkbox" [checked]="onlyPrefixed()" (change)="toggleOnlyPrefixed()" />Only
+          consider chapter anchors</label
         >
       }
     </fieldset>
@@ -124,6 +119,7 @@ export class ScrollOptionsPanel {
   readonly strategy = model<AnchorStrategyOption>('prefix');
   readonly showVisibility = input(false);
   readonly showSpy = input(false);
+  readonly showStrategy = input(false);
   readonly showOverlayToggle = input(true);
   setBehavior(value: string) {
     if (value === 'instant' || value === 'smooth' || value === 'auto') this.behavior.set(value);
@@ -133,12 +129,7 @@ export class ScrollOptionsPanel {
       this.visibility.set(value);
   }
   setStrategy(value: string) {
-    if (
-      value === 'prefix' ||
-      value === 'multi-prefix' ||
-      value === 'explicit' ||
-      value === 'all'
-    ) {
+    if (value === 'prefix' || value === 'multi-prefix' || value === 'explicit' || value === 'all') {
       this.strategy.set(value);
       this.onlyPrefixed.set(value !== 'all');
     }
