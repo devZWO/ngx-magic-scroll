@@ -1,10 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-if (
-  process.argv.some(
-    (arg) => arg === '--project' || arg.startsWith('--project='),
-  )
-) {
+if (process.argv.some((arg) => arg === '--project' || arg.startsWith('--project='))) {
   process.env['E2E_ALL_BROWSERS'] = 'true';
 }
 

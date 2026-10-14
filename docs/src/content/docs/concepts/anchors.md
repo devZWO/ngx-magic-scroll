@@ -96,9 +96,7 @@ provideMagicScroll({
 
 ```html
 <!-- Per-region override supporting multiple prefixes -->
-<div magicScroll [scrollOptions]="{ anchorPrefixes: ['doc-', 'appendix-'] }">
-  ...
-</div>
+<div magicScroll [scrollOptions]="{ anchorPrefixes: ['doc-', 'appendix-'] }">...</div>
 ```
 
 The same selection applies to scroll-spy tracking, initial restoration and `scrollTo()`. An element can exist in the DOM and still be unavailable to this region because it is excluded by the selection rules. Setting `anchorPrefixes: ['']` on a region clears an inherited prefix and includes all its descendant IDs again.

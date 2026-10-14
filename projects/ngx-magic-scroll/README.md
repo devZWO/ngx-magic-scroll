@@ -53,7 +53,7 @@ provideMagicScroll({
 });
 ```
 
-The header's height is measured and observed automatically. `headerOffset` is an additional gap below it, or the full offset without a header. Defaults are an empty prefix list (`['']`) and header selector, zero offset, a 500 ms scroll-spy debounce, instant restoration and smooth interaction.
+The header's height is measured and observed automatically. `headerOffset` is an additional gap below it, or the full offset without a header. Defaults are a single empty prefix in a list (`['']`, matching all descendant IDs), an empty header selector, zero offset, a 500 ms scroll-spy debounce, instant restoration and smooth interaction.
 
 Child providers inherit unspecified settings. Override an individual region with `[scrollOptions]="options"`; unspecified fields still inherit. Explicit `0`, `false`, `anchorPrefixes: ['']` (matches all descendant IDs), and `anchorPrefixes: []` (matches no prefix) override inherited values.
 

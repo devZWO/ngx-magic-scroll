@@ -1202,7 +1202,8 @@ describe('subsequent router fragment navigation', () => {
     vi.useFakeTimers();
     const routeFragment = new BehaviorSubject<string | null>('a-1');
     const scroll = { scroll: vi.fn(() => true) };
-    let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
+    let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null =
+      null;
     const router = {
       createUrlTree: vi.fn(),
       navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
@@ -1219,7 +1220,10 @@ describe('subsequent router fragment navigation', () => {
       imports: [SiblingHost],
       providers: [
         { provide: ScrollService, useValue: scroll },
-        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'a-1' } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { fragment: routeFragment, snapshot: { fragment: 'a-1' } },
+        },
         { provide: Router, useValue: router },
       ],
     });
@@ -1302,7 +1306,10 @@ describe('subsequent router fragment navigation', () => {
       imports: [Host],
       providers: [
         { provide: ScrollService, useValue: scroll },
-        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'item-1' } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { fragment: routeFragment, snapshot: { fragment: 'item-1' } },
+        },
         { provide: Router, useValue: router },
       ],
     });
