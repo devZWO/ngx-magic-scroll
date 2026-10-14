@@ -262,7 +262,7 @@ it('waits for explicit undefined input, restores once, and preserves later data 
   render();
   expect(scroll.scroll).toHaveBeenLastCalledWith(
     'item-2',
-    expect.objectContaining({ behavior: 'instant', ignoreWhenInView: 'top' }),
+    expect.objectContaining({ behavior: 'instant' }),
   );
   host.options.set({ restoreOnDataChange: false });
   render();
@@ -683,7 +683,7 @@ it('uses live active section rather than stale URL fragment during data/resize c
   // Preservation must target live section 'item-2', NOT stale fragment 'item-1'
   expect(scroll.scroll).toHaveBeenLastCalledWith(
     'item-2',
-    expect.objectContaining({ behavior: 'instant', ignoreWhenInView: 'top' }),
+    expect.objectContaining({ behavior: 'instant' }),
   );
 });
 
@@ -1655,12 +1655,49 @@ describe('subsequent router fragment navigation', () => {
       host.source.set([1, 2, 3]);
       render();
 
-      // Data reflow should preserve the -350px displacement
+      // Data reflow should preserve the -350px displacement without a visibility opt-out
       expect(scroll.scroll).toHaveBeenLastCalledWith(
         'item-1',
         expect.objectContaining({
           behavior: 'instant',
           displacement: -350,
+        }),
+      );
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-1',
+        expect.not.objectContaining({
+          ignoreWhenInView: 'top',
+        }),
+      );
+    });
+
+    it('does not skip preservation when anchor top remains visible', () => {
+      const { container, region, host, render, scroll } = setup('item-1');
+      host.source.set([1]);
+      render();
+
+      // Heading is visible below the activation boundary (e.g. displacement = 50px)
+      region.querySelectorAll<HTMLElement>('[id]').forEach((el) => {
+        el.getBoundingClientRect = () => (el.id === 'item-1' ? rect(150, 600) : rect(2000, 2500));
+      });
+      container.dispatchEvent(new Event('scroll'));
+
+      // Small prepend occurs, triggering data-change preservation
+      host.source.set([1, 2]);
+      render();
+
+      // Must execute preservation without visibility opt-out
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-1',
+        expect.objectContaining({
+          behavior: 'instant',
+          displacement: 50,
+        }),
+      );
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-1',
+        expect.not.objectContaining({
+          ignoreWhenInView: 'top',
         }),
       );
     });
@@ -1676,11 +1713,14 @@ describe('subsequent router fragment navigation', () => {
       });
       container.dispatchEvent(new Event('scroll'));
 
-      // Explicit navigation to item-2
-      host.scroll().scrollTo('item-2');
+      // Explicit navigation to item-2 enforces displacement 0 even if callers attempt overrides
+      (host.scroll().scrollTo as (anchor: string, opts: unknown) => boolean)('item-2', {
+        displacement: -123,
+        behavior: 'smooth',
+      });
       expect(scroll.scroll).toHaveBeenLastCalledWith(
         'item-2',
-        expect.objectContaining({ displacement: 0 }),
+        expect.objectContaining({ behavior: 'smooth', displacement: 0 }),
       );
 
       // Subsequent external router fragment navigation to item-1 also resets displacement
@@ -1725,7 +1765,9 @@ describe('subsequent router fragment navigation', () => {
       );
 
       // Trigger scroll when nearest returns an unlisted ghost anchor (line 551: if (!anchorEl) return)
-      vi.spyOn(NearestAnchorProvider.prototype, 'getNearestAnchor').mockReturnValueOnce('ghost-anchor');
+      vi.spyOn(NearestAnchorProvider.prototype, 'getNearestAnchor').mockReturnValueOnce(
+        'ghost-anchor',
+      );
       document.dispatchEvent(new Event('scroll'));
     });
   });

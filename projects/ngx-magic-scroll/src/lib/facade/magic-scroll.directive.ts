@@ -34,7 +34,7 @@ import { NO_SCROLL_SOURCE, readScrollSource, ScrollSource } from './scroll-sourc
  */
 export type MagicScrollToOptions = Pick<
   ScrollOptions,
-  'behavior' | 'topOffset' | 'ignoreWhenInView' | 'displacement'
+  'behavior' | 'topOffset' | 'ignoreWhenInView'
 >;
 
 /**
@@ -94,7 +94,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
  *    - Sequenced `afterRenderEffect` execution blocks guarantee sticky header measurement and `ResizeObserver`
  *      monitoring are active before initial fragment restoration and data preservation execute.
  * 4. **Preservation & Realignment Engine**:
- *    - Automatic realignments (`preserve('top')`) on data updates and container/header resizes based on the live active section.
+ *    - Automatic realignments (`preserve()`) on data updates and container/header resizes based on the live active section.
  * 5. **Container & Anchor Scoping**:
  *    - Automatic scroll container resolution (window vs scrollable element) and hierarchical anchor ownership isolation.
  *
@@ -261,7 +261,7 @@ export class MagicScrollDirective {
               if (this.pendingDestination) {
                 this.scheduleDestinationRetry();
               } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
-                this.preserve('top');
+                this.preserve();
               }
             }
           }
@@ -355,8 +355,8 @@ export class MagicScrollDirective {
     const executed = this.execute(anchor, {
       behavior: this.options().behavior.interaction,
       ignoreWhenInView: this.options().ignoreWhenInView,
-      displacement: 0,
       ...options,
+      displacement: 0,
     });
     if (executed) {
       const clean = anchor.replace(/^#/, '');
@@ -509,7 +509,7 @@ export class MagicScrollDirective {
   /**
    * Dispatches scrolling to the underlying {@link ScrollService} after validating target presence.
    */
-  private execute(anchor: string | null | undefined, options: MagicScrollToOptions): boolean {
+  private execute(anchor: string | null | undefined, options: ScrollOptions): boolean {
     if (!anchor || !this.anchors().some((el) => el.id === anchor.replace(/^#/, ''))) return false;
     return this.service.scroll(anchor, {
       scrollable: this.scrollable(),
@@ -529,13 +529,12 @@ export class MagicScrollDirective {
    * delta computes to 0, inherently avoiding double-compensation.
    * If the active anchor element is no longer present in the DOM, realignment is skipped deterministically.
    */
-  private preserve(ignoreWhenInView: ScrollOptions['ignoreWhenInView'] = 'none'): void {
+  private preserve(): void {
     if (this.initialized) {
       const anchor = this.liveAnchor();
       if (!anchor) return;
       this.execute(anchor, {
         behavior: 'instant',
-        ignoreWhenInView,
         displacement: this.savedDisplacement,
       });
     }

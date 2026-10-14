@@ -309,7 +309,7 @@ describe('recipe integration: real TanStack Query', () => {
     await querySettled(test);
     expect(test.scroll).toHaveBeenLastCalledWith(
       'item-1',
-      expect.objectContaining({ ignoreWhenInView: 'top' }),
+      expect.objectContaining({ behavior: 'instant' }),
     );
     test.client.clear();
   });

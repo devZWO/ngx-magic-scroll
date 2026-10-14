@@ -346,8 +346,8 @@ export class DetailExample {
                 <summary>View extended specifications and timeline</summary>
                 <div class="details-content">
                   <p>
-                    Technical review in progress for electrical grid integration, meter installation,
-                    and low-voltage distribution feeder connection.
+                    Technical review in progress for electrical grid integration, meter
+                    installation, and low-voltage distribution feeder connection.
                   </p>
                   <p>
                     Documents submitted: Grid layout schematics, certified contractor documentation,
@@ -361,8 +361,8 @@ export class DetailExample {
                     safety disconnect coordination.
                   </p>
                   <p>
-                    Phase 3 (Scheduled): Field technician inspection, smart meter commissioning,
-                    and formal grid activation.
+                    Phase 3 (Scheduled): Field technician inspection, smart meter commissioning, and
+                    formal grid activation.
                   </p>
                   <p>
                     <em>Reading Position Note:</em> When scrolling halfway through this card,

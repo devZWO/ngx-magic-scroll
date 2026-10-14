@@ -65,7 +65,11 @@ describe('ScrollService', () => {
     const container = element('container', 100, 600);
     Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true });
     Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true });
-    Object.defineProperty(container, 'scrollTop', { value: 400, writable: true, configurable: true });
+    Object.defineProperty(container, 'scrollTop', {
+      value: 400,
+      writable: true,
+      configurable: true,
+    });
     container.scrollTo = vi.fn();
 
     // Target is currently at top: -100 relative to document, so rect.top = -100.

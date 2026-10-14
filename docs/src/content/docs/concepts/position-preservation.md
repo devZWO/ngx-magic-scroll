@@ -5,19 +5,19 @@ sidebar:
   order: 4
 ---
 
-After initial restoration, content and layout can shift dynamically due to asynchronous data insertions, container resizing, or sticky header height changes. `ngx-magic-scroll` implements an **anchor-relative pixel displacement policy** that preserves the user's exact reading position within the active section, preventing disruptive jumps back to section headings during automatic reflows.
+After initial restoration, content and layout can shift dynamically due to asynchronous data insertions, container resizing, or sticky header height changes. `ngx-magic-scroll` implements an **anchor-relative pixel displacement policy** that preserves the active section's pixel displacement, preventing disruptive jumps back to section headings during automatic reflows.
 
 ## Different causes have different policies
 
-| Cause                                          | Target                        | Displacement policy                                         | Default behavior                                                |
-| ---------------------------------------------- | ----------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
-| Initial ready render                           | Fragment from URL snapshot    | Aligned to heading (`displacement = 0`)                     | Restore once, instantly (unless user cancelled via interaction) |
-| Explicit `scrollTo()`                          | Requested anchor              | Aligned to heading (`displacement = 0`)                     | Scroll smoothly                                                 |
-| External router fragment change                | Route destination anchor      | Aligned to heading (`displacement = 0`)                     | Restore instantly                                               |
-| Later ready source change                      | Current live visible section  | Preserves saved pixel displacement (`savedDisplacement`)    | Correct instantly without resetting to section top              |
-| Window resize or measured header-height change | Current live visible section  | Preserves saved pixel displacement (`savedDisplacement`)    | Realign instantly to maintain exact reading line                |
+| Cause                                          | Target                       | Displacement policy                                      | Default behavior                                                |
+| ---------------------------------------------- | ---------------------------- | -------------------------------------------------------- | --------------------------------------------------------------- |
+| Initial ready render                           | Fragment from URL snapshot   | Aligned to heading (`displacement = 0`)                  | Restore once, instantly (unless user cancelled via interaction) |
+| Explicit `scrollTo()`                          | Requested anchor             | Aligned to heading (`displacement = 0`)                  | Scroll smoothly                                                 |
+| External router fragment change                | Route destination anchor     | Aligned to heading (`displacement = 0`)                  | Restore instantly                                               |
+| Later ready source change                      | Current live visible section | Preserves saved pixel displacement (`savedDisplacement`) | Correct instantly without resetting to section top              |
+| Window resize or measured header-height change | Current live visible section | Preserves saved pixel displacement (`savedDisplacement`) | Realign instantly to maintain section pixel offset              |
 
-The distinction between initial URL fragments, live visible sections, and intentional user navigation ensures seamless reading continuity. When reading halfway through a 1200px card, layout reflows maintain the exact paragraph in view rather than resetting to the card header.
+The distinction between initial URL fragments, live visible sections, and intentional user navigation ensures seamless reading continuity. When reading halfway through a 1200px card, layout reflows preserve the section's relative pixel position rather than resetting to the card header.
 
 ### Live section tracking vs URL debouncing
 
@@ -46,7 +46,7 @@ sequenceDiagram
         Directive->>Directive: Compute delta = (currentAnchorRect.top - topBoundary) - savedDisplacement
         Directive->>Service: Adjust scrollable.scrollTop by delta (clamped to bounds)
         Service->>Viewport: scrollable.scrollTo(targetScrollTop, instant)
-        Note over User,Viewport: Exact reading position preserved!
+        Note over User,Viewport: Section displacement preserved!
     end
 ```
 
@@ -75,6 +75,7 @@ targetScrollTop = clamp(currentScrollTop + delta, 0, maxScrollTop)
 
 - **Without browser scroll anchoring:** If content is inserted above the section, `currentDisplacement` changes by the height of the prepended items. `delta` equals the shift and `scrollTop` is adjusted instantly, keeping the section visually locked under the reader's view.
 - **With native browser scroll anchoring (`overflow-anchor: auto`):** If the browser has already compensated `scrollTop` for inserted content, `currentDisplacement` remains equal to `savedDisplacement`. `delta` computes to `0`, inherently preventing double-compensation without browser-sniffing heuristics.
+- **Intra-section limitation:** Anchor-relative displacement preserves the active section anchor's pixel offset relative to the reading boundary (`savedDisplacement`). It does not track intra-section elements or percentage progress through a section. Consequently, when text wraps or content changes _inside_ the active section itself, the exact paragraph or sentence being read may still move; retaining a specific paragraph across internal changes requires finer-grained child anchors.
 
 ### 3. Reset policy for deliberate navigation
 
