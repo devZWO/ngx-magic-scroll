@@ -51,7 +51,7 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
   const parent = Injector.create({
     providers: [
       provideMagicScroll({
-        anchorPrefix: 'parent-',
+        anchorPrefixes: ['parent-'],
         headerSelector: '.header',
         headerOffset: 64,
         bottomOffset: 32,
@@ -64,16 +64,17 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
     parent: root,
   });
   const child = Injector.create({
-    providers: [provideMagicScroll({ anchorPrefix: 'child-' })],
+    providers: [provideMagicScroll({ anchorPrefixes: ['child-'] })],
     parent,
   });
   expect(child.get(MAGIC_SCROLL_OPTIONS)).toEqual({
     ...parent.get(MAGIC_SCROLL_OPTIONS),
-    anchorPrefix: 'child-',
+    anchorPrefixes: ['child-'],
+    anchorSelection: 'all',
   });
   expect(
     resolveMagicScrollOptions(child.get(MAGIC_SCROLL_OPTIONS), {
-      anchorPrefix: '',
+      anchorPrefixes: [''],
       headerSelector: '',
       headerOffset: 0,
       bottomOffset: 0,
@@ -85,7 +86,8 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
       behavior: { restoration: 'smooth' },
     }),
   ).toEqual({
-    anchorPrefix: '',
+    anchorPrefixes: [''],
+    anchorSelection: 'all',
     headerSelector: '',
     headerOffset: 0,
     bottomOffset: 0,
@@ -96,6 +98,50 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
     preserveOnResize: false,
     behavior: { restoration: 'smooth', interaction: 'instant' },
   });
+});
+
+it('resolves multiple anchor prefixes, empty prefix arrays, and explicit-only anchor selection strategies', () => {
+  const rootDefaults = TestBed.inject(MAGIC_SCROLL_OPTIONS);
+
+  // 1. Multiple prefixes resolution
+  const multiPrefixInjector = Injector.create({
+    providers: [provideMagicScroll({ anchorPrefixes: ['profile-', 'project_'] })],
+  });
+  expect(multiPrefixInjector.get(MAGIC_SCROLL_OPTIONS)).toEqual({
+    ...rootDefaults,
+    anchorPrefixes: ['profile-', 'project_'],
+    anchorSelection: 'all',
+  });
+
+  // 2. Explicit-only selection strategy
+  const explicitInjector = Injector.create({
+    providers: [
+      provideMagicScroll({
+        anchorSelection: 'explicit',
+        anchorPrefixes: ['ignored-prefix-'],
+      }),
+    ],
+  });
+  expect(explicitInjector.get(MAGIC_SCROLL_OPTIONS)).toEqual({
+    ...rootDefaults,
+    anchorPrefixes: ['ignored-prefix-'],
+    anchorSelection: 'explicit',
+  });
+
+  // 3. Child overriding with empty prefix array (disables prefix matching)
+  const emptyPrefixes = resolveMagicScrollOptions(multiPrefixInjector.get(MAGIC_SCROLL_OPTIONS), {
+    anchorPrefixes: [],
+  });
+  expect(emptyPrefixes.anchorPrefixes).toEqual([]);
+  expect(emptyPrefixes.anchorSelection).toBe('all');
+
+  // 4. Overriding explicit mode back to all mode with new prefix
+  const restoredAll = resolveMagicScrollOptions(explicitInjector.get(MAGIC_SCROLL_OPTIONS), {
+    anchorSelection: 'all',
+    anchorPrefixes: ['item-'],
+  });
+  expect(restoredAll.anchorSelection).toBe('all');
+  expect(restoredAll.anchorPrefixes).toEqual(['item-']);
 });
 
 it('adapts omitted, plain, nested signal, resource and query sources without truthiness errors', () => {
@@ -154,7 +200,7 @@ it('adapts omitted, plain, nested signal, resource and query sources without tru
 })
 class Host {
   readonly source = signal<ScrollSource>(undefined);
-  readonly options = signal<MagicScrollOptions>({ anchorPrefix: 'item-' });
+  readonly options = signal<MagicScrollOptions>({ anchorPrefixes: ['item-'] });
   readonly overflow = signal('auto');
   readonly explicitId = signal('explicit');
   readonly scroll = viewChild.required(MagicScrollDirective);
@@ -247,16 +293,21 @@ it('supports static resolver content without a source and retries initial anchor
 it('combines global, local and per-call options and scopes IDs and explicit anchors', () => {
   TestBed.overrideComponent(Host, {
     add: {
-      providers: [provideMagicScroll({ headerOffset: 64, behavior: { interaction: 'auto' } })],
+      providers: [
+        provideMagicScroll({
+          headerOffset: 64,
+          behavior: { interaction: 'auto' },
+          ignoreWhenInView: 'full',
+        }),
+      ],
     },
   });
   const { host, region, render, scroll } = setup(null);
   host.source.set([]);
   host.options.set({
-    anchorPrefix: 'item-',
+    anchorPrefixes: ['item-'],
     behavior: { interaction: 'instant' },
     headerOffset: 20,
-    ignoreWhenInView: 'full',
   });
   render();
   const nested = document.createElement('div');
@@ -288,6 +339,79 @@ it('combines global, local and per-call options and scopes IDs and explicit anch
   expect(host.scroll().activeAnchor()).toBe('renamed');
 });
 
+it('supports multiple anchorPrefixes and excludes non-matching and generated IDs', () => {
+  const { host, region, render, scroll } = setup(null);
+  host.source.set([]);
+
+  const sec = document.createElement('section');
+  sec.id = 'sec-alpha';
+  const matInput = document.createElement('input');
+  matInput.id = 'mat-input-42';
+  region.append(sec, matInput);
+
+  host.options.set({
+    anchorPrefixes: ['item-', 'sec-'],
+  });
+  render();
+
+  // Both 'item-' and 'sec-' prefixes are eligible
+  expect(host.scroll().scrollTo('item-1')).toBe(true);
+  expect(scroll.scroll).toHaveBeenLastCalledWith('item-1', expect.anything());
+
+  expect(host.scroll().scrollTo('sec-alpha')).toBe(true);
+  expect(scroll.scroll).toHaveBeenLastCalledWith('sec-alpha', expect.anything());
+
+  // Explicit scrollAnchor remains eligible
+  expect(host.scroll().scrollTo('other')).toBe(true);
+
+  // Generated Angular Material control ID and unlisted prefixes are excluded
+  expect(host.scroll().scrollTo('mat-input-42')).toBe(false);
+  expect(host.scroll().scrollTo('excluded')).toBe(false);
+});
+
+it('enforces strict explicit-only anchor selection disregarding prefixes and generated control IDs', () => {
+  const { host, region, render, scroll } = setup(null);
+  host.source.set([]);
+
+  const matInput = document.createElement('input');
+  matInput.id = 'mat-mdc-form-field-0';
+  region.append(matInput);
+
+  host.options.set({
+    anchorSelection: 'explicit',
+    anchorPrefixes: ['item-'], // Even if prefix is provided, explicit selection overrides it
+  });
+  render();
+
+  // In explicit mode, elements without data-scroll-anchor are excluded even if they match prefixes
+  expect(host.scroll().scrollTo('item-1')).toBe(false);
+  expect(host.scroll().scrollTo('item-2')).toBe(false);
+  expect(host.scroll().scrollTo('mat-mdc-form-field-0')).toBe(false);
+  expect(host.scroll().scrollTo('excluded')).toBe(false);
+
+  // Only explicitly marked scrollAnchor elements are eligible
+  expect(host.scroll().scrollTo('other')).toBe(true);
+  expect(scroll.scroll).toHaveBeenLastCalledWith('other', expect.anything());
+});
+
+it('supports empty anchorPrefixes list matching only explicit markers in all-selection mode', () => {
+  const { host, render, scroll } = setup(null);
+  host.source.set([]);
+
+  host.options.set({
+    anchorPrefixes: [],
+  });
+  render();
+
+  // With empty prefix list, prefix matching is disabled
+  expect(host.scroll().scrollTo('item-1')).toBe(false);
+  expect(host.scroll().scrollTo('excluded')).toBe(false);
+
+  // Explicit markers remain eligible
+  expect(host.scroll().scrollTo('other')).toBe(true);
+  expect(scroll.scroll).toHaveBeenLastCalledWith('other', expect.anything());
+});
+
 it('debounces scroll spy, reacts to prefix changes and ignores scrolls before readiness', () => {
   vi.useFakeTimers();
   const { host, container, render, routeFragment, router } = setup(null);
@@ -296,7 +420,7 @@ it('debounces scroll spy, reacts to prefix changes and ignores scrolls before re
   render();
   expect(router.navigateByUrl).not.toHaveBeenCalled();
   host.source.set([1]);
-  host.options.set({ anchorPrefix: 'item-', headerOffset: 10, debounceTime: 50 });
+  host.options.set({ anchorPrefixes: ['item-'], headerOffset: 10, debounceTime: 50 });
   render();
   container.dispatchEvent(new Event('scroll'));
   vi.advanceTimersByTime(49);
@@ -305,7 +429,7 @@ it('debounces scroll spy, reacts to prefix changes and ignores scrolls before re
   vi.advanceTimersByTime(1);
   render();
   expect(host.scroll().activeAnchor()).toBe('item-1');
-  host.options.set({ anchorPrefix: 'absent-', debounceTime: 0 });
+  host.options.set({ anchorPrefixes: ['absent-'], debounceTime: 0 });
   // Explicit anchors remain eligible; remove them to exercise no nearest target.
   container.querySelectorAll('[data-scroll-anchor]').forEach((el) => el.remove());
   render();
@@ -345,7 +469,7 @@ it('passes bottomOffset from provider defaults and per-region scrollOptions to n
 
   // Override locally with bottomOffset: 20 -> bottomBoundary = 500 - 20 = 480.
   // item2 (bottom 450 <= 480) is now fully contained and selected.
-  host.options.set({ anchorPrefix: 'item-', bottomOffset: 20, debounceTime: 50 });
+  host.options.set({ anchorPrefixes: ['item-'], bottomOffset: 20, debounceTime: 50 });
   render();
   container.dispatchEvent(new Event('scroll'));
   vi.advanceTimersByTime(50);
@@ -380,7 +504,7 @@ it('passes activationThreshold from provider defaults and per-region scrollOptio
 
   // Override locally with activationThreshold: 0.7 -> triggerLine = 600 * 0.7 = 420.
   // item2 (top 350 <= 420) crosses the 70% threshold and becomes active.
-  host.options.set({ anchorPrefix: 'item-', activationThreshold: 0.7, debounceTime: 50 });
+  host.options.set({ anchorPrefixes: ['item-'], activationThreshold: 0.7, debounceTime: 50 });
   render();
   container.dispatchEvent(new Event('scroll'));
   vi.advanceTimersByTime(50);
@@ -537,7 +661,7 @@ it('uses document scrolling when a body or html overflow style defines the scrol
 it('uses live active section rather than stale URL fragment during data/resize corrections within debounce window', () => {
   vi.useFakeTimers();
   const { host, container, region, render, scroll } = setup('item-1');
-  host.options.set({ anchorPrefix: 'item-', debounceTime: 500 });
+  host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
   host.source.set([1]);
   render();
   expect(scroll.scroll).toHaveBeenLastCalledWith('item-1', expect.anything());
@@ -822,7 +946,7 @@ describe('subsequent router fragment navigation', () => {
 
   it('uses configured behavior.restoration for subsequent router navigations', () => {
     const { host, render, scroll, routeFragment } = setup('item-1');
-    host.options.set({ anchorPrefix: 'item-', behavior: { restoration: 'smooth' } });
+    host.options.set({ anchorPrefixes: ['item-'], behavior: { restoration: 'smooth' } });
     host.source.set([1, 2]);
     render();
     expect(scroll.scroll).toHaveBeenCalledWith(
@@ -1078,7 +1202,8 @@ describe('subsequent router fragment navigation', () => {
     vi.useFakeTimers();
     const routeFragment = new BehaviorSubject<string | null>('a-1');
     const scroll = { scroll: vi.fn(() => true) };
-    let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
+    let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null =
+      null;
     const router = {
       createUrlTree: vi.fn(),
       navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
@@ -1095,7 +1220,10 @@ describe('subsequent router fragment navigation', () => {
       imports: [SiblingHost],
       providers: [
         { provide: ScrollService, useValue: scroll },
-        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'a-1' } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { fragment: routeFragment, snapshot: { fragment: 'a-1' } },
+        },
         { provide: Router, useValue: router },
       ],
     });
@@ -1178,7 +1306,10 @@ describe('subsequent router fragment navigation', () => {
       imports: [Host],
       providers: [
         { provide: ScrollService, useValue: scroll },
-        { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment: 'item-1' } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { fragment: routeFragment, snapshot: { fragment: 'item-1' } },
+        },
         { provide: Router, useValue: router },
       ],
     });

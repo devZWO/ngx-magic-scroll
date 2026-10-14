@@ -121,7 +121,7 @@ import { provideMagicScroll } from '@devzwo/ngx-magic-scroll';
 
 // Add to appConfig.providers:
 provideMagicScroll({
-  anchorPrefix: 'project-',
+  anchorPrefixes: ['project-'],
   headerSelector: '.app-header',
   headerOffset: 16,
 });

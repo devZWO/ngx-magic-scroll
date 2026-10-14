@@ -45,7 +45,8 @@ pnpm start
 | `pnpm test:ci`          | Run Vitest tests with coverage                          |
 | `pnpm e2e:install`      | Download Playwright browsers                            |
 | `pnpm e2e:install:deps` | Install browser system dependencies if needed           |
-| `pnpm e2e`              | Run tests against the demo in Chromium, Firefox, WebKit |
+| `pnpm e2e`              | Run tests against the demo in Chromium (default)        |
+| `pnpm e2e:all`          | Run tests against the demo in Chromium, Firefox, WebKit |
 | `pnpm recipes:check`    | Compile recipe TypeScript and Angular templates         |
 | `pnpm docs:dev`         | Start the documentation site                            |
 | `pnpm package:check`    | Build and inspect the publishable package               |
