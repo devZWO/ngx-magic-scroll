@@ -101,8 +101,9 @@ When navigating via keyboard shortcuts, skip links, or error notifications, tran
 ```
 
 - **Safe Focus**: Invocations use `focus({ preventScroll: true })` so browser-native focus scrolling does not conflict with calculated header offsets.
-- **Temporary Tabindex Management**: Naturally focusable elements (links, buttons, inputs) and elements with existing `tabindex` receive focus directly. Non-focusable container elements (e.g. `<section>`, `<div>`) receive a temporary `tabindex="-1"`, which is automatically stripped on `blur` or when the directive is destroyed.
-- **Smooth Scroll Coordination & Cancellation**: For smooth scrolling, focus is applied upon scroll completion (`scrollend`). If the user interrupts scrolling (via mouse wheel, touch gesture, or navigation key), pending focus is canceled immediately.
+- **Temporary Tabindex Management**: Naturally focusable elements (links, buttons, inputs) and elements with existing `tabindex` receive focus directly. Non-focusable container elements (e.g. `<section>`, `<div>`) receive a temporary `tabindex="-1"`, which is removed if focus fails, on `blur`, or when the directive is destroyed. Consumer changes to `tabindex` are preserved.
+- **Smooth Scroll Coordination & Cancellation**: For effective smooth scrolling (including `behavior: 'auto'` when CSS `scroll-behavior` is smooth), focus is applied upon scroll completion (`scrollend`). No-movement requests focus immediately. A newer navigation, user scroll, Tab key, focus change, or pointer handoff cancels stale pending focus.
+- **Target validation**: The target must still be connected and eligible in this region when focus is applied. Pending focus is canceled if scrolling does not complete within five seconds.
 
 ```mermaid
 sequenceDiagram
@@ -114,14 +115,19 @@ sequenceDiagram
 
     User->>Directive: scrollTo('section-id', { focus: true, behavior: 'smooth' })
     Directive->>Service: scroll('section-id', options)
-    alt Target Already in View (ignoreWhenInView)
-        Service-->>Directive: returns false (no scroll movement)
+    alt Target resolved, but scroll is skipped or has no movement
         Directive->>Directive: applyFocus(target)
+    else Target missing or excluded
+        Directive->>Directive: no focus transfer
     else Scrolling Initiated
         Service-->>Directive: returns true
-        Directive->>Directive: scheduleFocus(target)
-        Note over Directive: Cancelled if User scrolls manually
-        Directive->>Directive: on scrollend -> applyFocus(target)
+        alt Effective behavior is smooth
+            Directive->>Directive: scheduleFocus(target)
+            Note over Directive: Cancelled on newer navigation or user handoff
+            Directive->>Directive: on scrollend -> applyFocus(target)
+        else Instant behavior
+            Directive->>Directive: applyFocus(target)
+        end
     end
 
     opt Non-focusable Target (no tabindex)

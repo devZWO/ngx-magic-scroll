@@ -34,10 +34,15 @@ describe('Demo Examples', () => {
 
     comp.focusTransfer.set(true);
     comp.jump('kapitel-2');
-    expect(comp.result()).toContain('focus transfer');
+    expect(comp.result()).toBe('Scrolling initiated; focus transfer requested.');
 
     comp.jumpWithFocus('kapitel-3');
-    expect(comp.result()).toContain('Direct focus transfer');
+    expect(comp.result()).toBe('Scrolling initiated; focus transfer requested.');
+    comp.strategy.set('prefix');
+    comp.jumpWithFocus('anhang-detail');
+    expect(comp.result()).toBe(
+      'Scrolling was not initiated; focus transfer was requested if the target is eligible.',
+    );
   });
 
   it('instantiates and operates DrawerExample', async () => {

@@ -155,16 +155,20 @@ export class DocumentExample {
     this.result.set(
       executed
         ? this.focusTransfer()
-          ? 'Scrolling initiated with focus transfer.'
+          ? 'Scrolling initiated; focus transfer requested.'
           : 'Scrolling initiated.'
         : this.focusTransfer()
-          ? 'Target already in view; focus transferred.'
-          : 'Scrolling skipped: The target is not eligible or already visible.',
+          ? 'Scrolling was not initiated; focus transfer was requested if the target is eligible.'
+          : 'Scrolling skipped: the target is not eligible or already visible.',
     );
   }
   jumpWithFocus(id: string) {
-    this.scroll().scrollTo(id, { focus: true, behavior: this.behavior() });
-    this.result.set('Direct focus transfer executed.');
+    const executed = this.scroll().scrollTo(id, { focus: true, behavior: this.behavior() });
+    this.result.set(
+      executed
+        ? 'Scrolling initiated; focus transfer requested.'
+        : 'Scrolling was not initiated; focus transfer was requested if the target is eligible.',
+    );
   }
 }
 
