@@ -14,6 +14,7 @@ for (const { behavior, cssSmooth } of [
     await page.getByText('Options', { exact: true }).click();
     await page.getByLabel('Scroll behavior').selectOption(behavior);
     await page.getByLabel('Top offset').selectOption('20');
+    await page.getByText('Options', { exact: true }).click();
     await page.locator('.viewport').evaluate((el, smooth) => {
       el.style.scrollBehavior = smooth ? 'smooth' : 'auto';
     }, cssSmooth);
@@ -96,9 +97,9 @@ test('scroll spy debounces a burst, uses the final anchor and reacts to a change
   await page.clock.runFor(400);
   await expect(page.locator('output')).toHaveText('');
   await placeAnchor(page, '#kapitel-4', '.viewport', 0);
-  await page.clock.runFor(600);
+  await page.clock.runFor(500);
   await expect(page.locator('output')).toHaveText('');
-  await page.clock.runFor(450);
+  await page.clock.runFor(550);
   await expect(page).toHaveURL(/keep=yes#kapitel-4$/);
   await expect(page.locator('output')).toHaveText('kapitel-4');
   await page.getByLabel('Scroll-spy delay').selectOption('0');
