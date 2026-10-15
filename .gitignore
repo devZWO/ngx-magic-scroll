@@ -53,3 +53,5 @@ test-results/
 blob-report/
 *.tgz
 .junie/memory/
+.junie/plans/
+proposal/
