@@ -85,6 +85,53 @@ For a particular button, pass per-call options:
 
 `scrollTo()` returns `false` when the target is unavailable, outside this region, excluded by anchor selection or skipped by the visibility rule. Each anchor belongs to its closest `magicScroll` region, so a parent cannot scroll to a nested region's anchors.
 
+### Accessible focus transfer
+
+When navigating via keyboard shortcuts, skip links, or error notifications, transferring DOM focus to the target element is critical for accessibility. Pass `{ focus: true }` to `scrollTo()` to transfer keyboard focus without secondary layout shifts:
+
+```html
+<button
+  (click)="scroll.scrollTo('project-delivery', {
+    behavior: 'smooth',
+    focus: true
+  })"
+>
+  Jump to delivery and shift focus
+</button>
+```
+
+- **Safe Focus**: Invocations use `focus({ preventScroll: true })` so browser-native focus scrolling does not conflict with calculated header offsets.
+- **Temporary Tabindex Management**: Naturally focusable elements (links, buttons, inputs) and elements with existing `tabindex` receive focus directly. Non-focusable container elements (e.g. `<section>`, `<div>`) receive a temporary `tabindex="-1"`, which is automatically stripped on `blur` or when the directive is destroyed.
+- **Smooth Scroll Coordination & Cancellation**: For smooth scrolling, focus is applied upon scroll completion (`scrollend`). If the user interrupts scrolling (via mouse wheel, touch gesture, or navigation key), pending focus is canceled immediately.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Trigger
+    participant Directive as MagicScrollDirective
+    participant Service as ScrollService
+    participant Target as Anchor Element
+
+    User->>Directive: scrollTo('section-id', { focus: true, behavior: 'smooth' })
+    Directive->>Service: scroll('section-id', options)
+    alt Target Already in View (ignoreWhenInView)
+        Service-->>Directive: returns false (no scroll movement)
+        Directive->>Directive: applyFocus(target)
+    else Scrolling Initiated
+        Service-->>Directive: returns true
+        Directive->>Directive: scheduleFocus(target)
+        Note over Directive: Cancelled if User scrolls manually
+        Directive->>Directive: on scrollend -> applyFocus(target)
+    end
+
+    opt Non-focusable Target (no tabindex)
+        Directive->>Target: setAttribute('tabindex', '-1')
+        Directive->>Target: addEventListener('blur', removeTabindex, { once: true })
+    end
+    Directive->>Target: target.focus({ preventScroll: true })
+    Directive-->>User: returns boolean
+```
+
 ## Scope and related recipes
 
 The target must already be rendered; this recipe does not load data or missing sections.

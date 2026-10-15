@@ -37,10 +37,21 @@ import {
       [(debounceTime)]="debounceTime"
       [(onlyPrefixed)]="onlyPrefixed"
       [(strategy)]="strategy"
+      [(focus)]="focusTransfer"
       [showVisibility]="true"
       [showSpy]="true"
       [showStrategy]="true"
+      [showFocusToggle]="true"
     />
+    <div class="demo-accessible-banner" role="region" aria-label="Accessibility quick actions">
+      <span>Accessible jump actions (with focus):</span>
+      <button class="demo-focus-jump-btn" (click)="jumpWithFocus('kapitel-3')">
+        Jump to Chapter 3
+      </button>
+      <button class="demo-focus-jump-btn" (click)="jumpWithFocus('anhang-detail')">
+        Jump to Appendix
+      </button>
+    </div>
     <p role="status" aria-label="Scroll result">{{ result() }}</p>
     <nav aria-label="Sections">
       @for (id of navSections; track id) {
@@ -109,6 +120,7 @@ export class DocumentExample {
   readonly debounceTime = signal(500);
   readonly onlyPrefixed = signal(true);
   readonly strategy = signal<AnchorStrategyOption>('prefix');
+  readonly focusTransfer = signal(false);
   readonly result = signal('Choose a target or scroll within the document.');
   private readonly scroll = viewChild.required(MagicScrollDirective);
   readonly options = computed<MagicScrollOptions>(() => {
@@ -135,12 +147,24 @@ export class DocumentExample {
     };
   });
   jump(id: string) {
-    const executed = this.scroll().scrollTo(id);
+    const executed = this.scroll().scrollTo(id, {
+      focus: this.focusTransfer(),
+      behavior: this.behavior(),
+      ignoreWhenInView: this.visibility(),
+    });
     this.result.set(
       executed
-        ? 'Scrolling initiated.'
-        : 'Scrolling skipped: The target is not eligible or already visible.',
+        ? this.focusTransfer()
+          ? 'Scrolling initiated with focus transfer.'
+          : 'Scrolling initiated.'
+        : this.focusTransfer()
+          ? 'Target already in view; focus transferred.'
+          : 'Scrolling skipped: The target is not eligible or already visible.',
     );
+  }
+  jumpWithFocus(id: string) {
+    this.scroll().scrollTo(id, { focus: true, behavior: this.behavior() });
+    this.result.set('Direct focus transfer executed.');
   }
 }
 
@@ -301,6 +325,8 @@ export class DetailExample {
       [(bottomOffset)]="bottomOffset"
       [(activationThreshold)]="activationThreshold"
       [(overlay)]="showOverlay"
+      [(focus)]="focusTransfer"
+      [showFocusToggle]="true"
     />
     <div class="option-item checkbox-item" style="margin-block: 12px">
       <label for="drawer-restore-changes" class="checkbox-label"
@@ -387,6 +413,7 @@ export class DrawerExample {
   readonly activationThreshold = signal(0);
   readonly showOverlay = signal(false);
   readonly restoreChanges = signal(true);
+  readonly focusTransfer = signal(false);
   readonly prepend = signal(0);
   readonly addThree = (count: number) => count + 3;
   private readonly route = inject(ActivatedRoute);
@@ -425,6 +452,6 @@ export class DrawerExample {
     restoreOnDataChange: this.restoreChanges(),
   }));
   jump(id: number) {
-    this.scroll().scrollTo('antrag-card-' + id);
+    this.scroll().scrollTo('antrag-card-' + id, { focus: this.focusTransfer() });
   }
 }

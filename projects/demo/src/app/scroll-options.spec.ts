@@ -15,9 +15,11 @@ import { AnchorStrategyOption, ScrollOptionsPanel, VisibilityMode } from './scro
       [(debounceTime)]="debounceTime"
       [(onlyPrefixed)]="onlyPrefixed"
       [(strategy)]="strategy"
+      [(focus)]="focus"
       [showVisibility]="showVisibility()"
       [showSpy]="showSpy()"
       [showStrategy]="showStrategy()"
+      [showFocusToggle]="showFocusToggle()"
       [showOverlayToggle]="showOverlayToggle()"
     />
   `,
@@ -32,10 +34,12 @@ class TestHost {
   readonly debounceTime = signal(500);
   readonly onlyPrefixed = signal(true);
   readonly strategy = signal<AnchorStrategyOption>('prefix');
+  readonly focus = signal(false);
 
   readonly showVisibility = signal(false);
   readonly showSpy = signal(false);
   readonly showStrategy = signal(false);
+  readonly showFocusToggle = signal(false);
   readonly showOverlayToggle = signal(true);
 }
 
@@ -73,9 +77,11 @@ describe('ScrollOptionsPanel', () => {
       expect(component.debounceTime()).toBe(500);
       expect(component.onlyPrefixed()).toBe(true);
       expect(component.strategy()).toBe('prefix');
+      expect(component.focus()).toBe(false);
       expect(component.showVisibility()).toBe(false);
       expect(component.showSpy()).toBe(false);
       expect(component.showStrategy()).toBe(false);
+      expect(component.showFocusToggle()).toBe(false);
       expect(component.showOverlayToggle()).toBe(true);
     });
 
@@ -293,16 +299,39 @@ describe('ScrollOptionsPanel', () => {
       expect(host.strategy()).toBe('all');
     });
 
+    it('conditionally renders and binds focus toggle', () => {
+      const { fixture, host } = createHost();
+      fixture.detectChanges();
+
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('Transfer focus to target');
+
+      host.showFocusToggle.set(true);
+      fixture.detectChanges();
+
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Transfer focus to target');
+
+      const focusInput = compiled.querySelector('#scroll-opt-focus') as HTMLInputElement | null;
+      expect(focusInput).not.toBeNull();
+      expect(focusInput!.checked).toBe(false);
+
+      focusInput!.click();
+      fixture.detectChanges();
+      expect(host.focus()).toBe(true);
+    });
+
     it('renders parameter help buttons for all configurable fields', () => {
       const { fixture, host } = createHost();
       host.showVisibility.set(true);
       host.showSpy.set(true);
       host.showStrategy.set(true);
+      host.showFocusToggle.set(true);
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
       const helpElements = Array.from(compiled.querySelectorAll('app-param-help'));
-      expect(helpElements.length).toBe(8);
+      expect(helpElements.length).toBe(9);
     });
   });
 });

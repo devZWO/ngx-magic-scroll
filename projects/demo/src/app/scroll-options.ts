@@ -84,6 +84,20 @@ export type AnchorStrategyOption = 'prefix' | 'multi-prefix' | 'explicit' | 'all
         </select>
       </div>
 
+      @if (showFocusToggle()) {
+        <div class="option-item checkbox-item">
+          <label for="scroll-opt-focus" class="checkbox-label">
+            <input
+              id="scroll-opt-focus"
+              type="checkbox"
+              [checked]="focus()"
+              (change)="focus.set(!focus())"
+            />Transfer focus to target
+          </label>
+          <app-param-help paramId="focus" />
+        </div>
+      }
+
       @if (showOverlayToggle()) {
         <div class="option-item checkbox-item">
           <label for="scroll-opt-overlay" class="checkbox-label">
@@ -181,9 +195,11 @@ export class ScrollOptionsPanel {
   readonly debounceTime = model(500);
   readonly onlyPrefixed = model(true);
   readonly strategy = model<AnchorStrategyOption>('prefix');
+  readonly focus = model(false);
   readonly showVisibility = input(false);
   readonly showSpy = input(false);
   readonly showStrategy = input(false);
+  readonly showFocusToggle = input(false);
   readonly showOverlayToggle = input(true);
   setBehavior(value: string) {
     if (value === 'instant' || value === 'smooth' || value === 'auto') this.behavior.set(value);

@@ -133,5 +133,6 @@ Commit changes using Conventional Commits format (e.g., `feat: support anchor-re
 ## Detailed References
 
 For detailed guidelines and checklists, refer to:
+
 - [Workflow Checklist](references/workflow-checklist.md) — Comprehensive phase-by-phase execution checklist.
 - [Quality Standards](references/quality-standards.md) — Angular 22, TypeScript, testing, and documentation standards.

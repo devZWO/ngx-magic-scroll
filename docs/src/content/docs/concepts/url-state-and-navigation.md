@@ -72,6 +72,8 @@ For a user action within an existing region, call `scrollTo()` on that region:
 
 The target must already be rendered and selected by the region. By default, the call initiates smooth scrolling and updates the fragment. Its boolean return value reports whether scrolling was initiated, not whether the animation has finished.
 
+Optionally, passing `{ focus: true }` transfers DOM focus safely to the target anchor without secondary scroll jumps, managing temporary `tabindex="-1"` for non-focusable landmark containers with automatic cleanup on blur or directive destruction.
+
 A call returns `false` when the target is missing, excluded, owned by another region or skipped by the configured visibility rule. A skipped call does not itself update the fragment. Data readiness does not queue explicit calls for later execution.
 
 ## Initial restoration reads the entry fragment

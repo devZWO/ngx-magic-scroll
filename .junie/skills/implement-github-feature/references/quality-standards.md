@@ -72,6 +72,7 @@ Reference standards for Angular 22, TypeScript, testing, accessibility, and docu
 ## 6. Conventional Commits
 
 Commit messages must adhere strictly to the Conventional Commits specification:
+
 - `feat:` for new capabilities or parameters
 - `fix:` for bug fixes
 - `docs:` for documentation updates

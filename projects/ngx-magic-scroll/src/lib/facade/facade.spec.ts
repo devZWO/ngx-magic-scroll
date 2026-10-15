@@ -1,4 +1,5 @@
 import { Component, Injector, signal, viewChild } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
@@ -1769,6 +1770,223 @@ describe('subsequent router fragment navigation', () => {
         'ghost-anchor',
       );
       document.dispatchEvent(new Event('scroll'));
+    });
+  });
+
+  describe('accessible focus transfer ({ focus: true })', () => {
+    it('transfers focus directly to naturally focusable elements and elements with explicit tabindex', () => {
+      const { region, host, render } = setup(null);
+      host.source.set([]);
+      render();
+
+      const button = document.createElement('button');
+      button.id = 'item-button';
+      button.textContent = 'Action';
+
+      const link = document.createElement('a');
+      link.id = 'item-link';
+      link.href = '#target';
+
+      const input = document.createElement('input');
+      input.id = 'item-input';
+
+      const select = document.createElement('select');
+      select.id = 'item-select';
+
+      const textarea = document.createElement('textarea');
+      textarea.id = 'item-textarea';
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'item-iframe';
+
+      const tabindexedZero = document.createElement('div');
+      tabindexedZero.id = 'item-tabindex-0';
+      tabindexedZero.setAttribute('tabindex', '0');
+
+      const tabindexedNeg = document.createElement('div');
+      tabindexedNeg.id = 'item-tabindex-neg';
+      tabindexedNeg.setAttribute('tabindex', '-1');
+
+      region.append(button, link, input, select, textarea, iframe, tabindexedZero, tabindexedNeg);
+
+      const elements = [
+        { el: button, name: 'button' },
+        { el: link, name: 'link' },
+        { el: input, name: 'input' },
+        { el: select, name: 'select' },
+        { el: textarea, name: 'textarea' },
+        { el: iframe, name: 'iframe' },
+        { el: tabindexedZero, name: 'tabindexedZero' },
+        { el: tabindexedNeg, name: 'tabindexedNeg' },
+      ];
+
+      for (const { el, name } of elements) {
+        const focusSpy = vi.spyOn(el, 'focus');
+        expect(host.scroll().scrollTo(el.id, { focus: true, behavior: 'instant' })).toBe(true);
+        expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+        expect(document.activeElement).toBe(el);
+        if (el === tabindexedZero) {
+          expect(el.getAttribute('tabindex')).toBe('0');
+        } else if (el === tabindexedNeg) {
+          expect(el.getAttribute('tabindex')).toBe('-1');
+        } else {
+          expect(el.hasAttribute('tabindex'), `Element ${name} should not have tabindex`).toBe(
+            false,
+          );
+        }
+      }
+    });
+
+    it('assigns temporary tabindex="-1" to non-focusable targets and removes it cleanly on blur', () => {
+      const { region, host, render } = setup(null);
+      host.source.set([]);
+      render();
+
+      const section = region.querySelector<HTMLElement>('#item-1')!;
+      const div = document.createElement('div');
+      div.id = 'item-div';
+
+      const article = document.createElement('article');
+      article.id = 'item-article';
+
+      const heading = document.createElement('h2');
+      heading.id = 'item-heading';
+
+      const paragraph = document.createElement('p');
+      paragraph.id = 'item-paragraph';
+
+      const anchorNoHref = document.createElement('a');
+      anchorNoHref.id = 'item-no-href';
+
+      region.append(div, article, heading, paragraph, anchorNoHref);
+
+      const nonFocusables = [section, div, article, heading, paragraph, anchorNoHref];
+
+      for (const el of nonFocusables) {
+        expect(el.hasAttribute('tabindex')).toBe(false);
+        expect(host.scroll().scrollTo(el.id, { focus: true, behavior: 'instant' })).toBe(true);
+        expect(el.getAttribute('tabindex')).toBe('-1');
+        expect(document.activeElement).toBe(el);
+
+        el.dispatchEvent(new Event('blur'));
+        expect(el.hasAttribute('tabindex')).toBe(false);
+      }
+    });
+
+    it('transfers focus even when scrolling is skipped via ignoreWhenInView', () => {
+      const { region, host, render, scroll } = setup(null);
+      host.source.set([]);
+      render();
+
+      const section = region.querySelector<HTMLElement>('#item-1')!;
+      scroll.scroll.mockReturnValueOnce(false);
+
+      expect(host.scroll().scrollTo('item-1', { focus: true, ignoreWhenInView: 'top' })).toBe(
+        false,
+      );
+      expect(document.activeElement).toBe(section);
+      expect(section.getAttribute('tabindex')).toBe('-1');
+
+      section.dispatchEvent(new Event('blur'));
+      expect(section.hasAttribute('tabindex')).toBe(false);
+    });
+
+    it('coordinates focus with smooth scroll completion and cancels focus on user intent', () => {
+      const { container, region, host, render } = setup(null);
+      host.source.set([]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+
+      // 1. Smooth scroll completion
+      expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'smooth' })).toBe(true);
+      expect(document.activeElement).not.toBe(item1);
+
+      container.dispatchEvent(new Event('scrollend'));
+      expect(document.activeElement).toBe(item1);
+
+      // 2. Cancellation via wheel
+      expect(host.scroll().scrollTo('item-2', { focus: true, behavior: 'smooth' })).toBe(true);
+      container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 20 }));
+      container.dispatchEvent(new Event('scrollend'));
+      expect(document.activeElement).not.toBe(item2);
+
+      // 3. Cancellation via touchstart
+      expect(host.scroll().scrollTo('item-2', { focus: true, behavior: 'smooth' })).toBe(true);
+      container.dispatchEvent(new TouchEvent('touchstart', { bubbles: true }));
+      container.dispatchEvent(new Event('scrollend'));
+      expect(document.activeElement).not.toBe(item2);
+
+      // 4. Cancellation via touchmove
+      expect(host.scroll().scrollTo('item-2', { focus: true, behavior: 'smooth' })).toBe(true);
+      container.dispatchEvent(new TouchEvent('touchmove', { bubbles: true }));
+      container.dispatchEvent(new Event('scrollend'));
+      expect(document.activeElement).not.toBe(item2);
+
+      // 5. Cancellation via navigation keydown
+      expect(host.scroll().scrollTo('item-2', { focus: true, behavior: 'smooth' })).toBe(true);
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      container.dispatchEvent(new Event('scrollend'));
+      expect(document.activeElement).not.toBe(item2);
+    });
+
+    it('cleans up temporary tabindex attributes and pending focus listeners on directive destruction', () => {
+      const { fixture, region, host, render } = setup(null);
+      host.source.set([]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'instant' })).toBe(true);
+      expect(item1.getAttribute('tabindex')).toBe('-1');
+
+      // Schedule another pending smooth focus
+      host.scroll().scrollTo('item-2', { focus: true, behavior: 'smooth' });
+
+      // Destroy directive / fixture
+      fixture.destroy();
+
+      expect(item1.hasAttribute('tabindex')).toBe(false);
+    });
+
+    it('handles missing targets, non-focus calls, and SSR environments gracefully', () => {
+      const { fixture, region, host, render } = setup(null);
+      host.source.set([]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+
+      // Missing target fails gracefully
+      expect(host.scroll().scrollTo('item-missing', { focus: true })).toBe(false);
+
+      // Default focus=false leaves activeElement untouched
+      expect(host.scroll().scrollTo('item-1', { focus: false })).toBe(true);
+      expect(item1.hasAttribute('tabindex')).toBe(false);
+
+      // Missing focus method (e.g. non-browser environment) fails gracefully
+      const originalFocus = item1.focus;
+      (item1 as unknown as { focus?: unknown }).focus = undefined;
+      expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'instant' })).toBe(true);
+      item1.focus = originalFocus;
+
+      // Null defaultView (SSR) fails gracefully
+      const doc = TestBed.inject(DOCUMENT);
+      const originalView = doc.defaultView;
+      Object.defineProperty(doc, 'defaultView', { value: null, configurable: true });
+      expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'instant' })).toBe(true);
+      Object.defineProperty(doc, 'defaultView', { value: originalView, configurable: true });
+
+      // Tabindex already removed before directive destroy (cleanup false branch)
+      expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'instant' })).toBe(true);
+      item1.removeAttribute('tabindex');
+      fixture.destroy();
+    });
+
+    it('handles smooth focus scheduling when target defaults to document', () => {
+      const { host } = setup(null);
+      (host.scroll() as unknown as { target?: unknown }).target = undefined;
+      expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'smooth' })).toBe(true);
+      document.dispatchEvent(new Event('scrollend'));
     });
   });
 });

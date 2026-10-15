@@ -31,6 +31,13 @@ describe('Demo Examples', () => {
 
     comp.jump('kapitel-1');
     expect(comp.result()).toContain('Scrolling');
+
+    comp.focusTransfer.set(true);
+    comp.jump('kapitel-2');
+    expect(comp.result()).toContain('focus transfer');
+
+    comp.jumpWithFocus('kapitel-3');
+    expect(comp.result()).toContain('Direct focus transfer');
   });
 
   it('instantiates and operates DrawerExample', async () => {
@@ -67,6 +74,8 @@ describe('Demo Examples', () => {
     expect(comp.count()).toBe(14);
 
     comp.jump(1);
+    comp.focusTransfer.set(true);
+    comp.jump(2);
   });
 
   it('instantiates and operates NavigationExample and DetailExample', async () => {
