@@ -693,7 +693,6 @@ export class MagicScrollDirective {
     const addedTabindex = !isNaturallyFocusable(targetEl);
     if (addedTabindex) {
       targetEl.setAttribute('tabindex', '-1');
-      cleanup = () => {};
       const onBlur = () => cleanup();
       cleanup = () => {
         targetEl.removeEventListener('blur', onBlur);
@@ -703,7 +702,7 @@ export class MagicScrollDirective {
         this.temporaryTabindexCleanups.delete(cleanup);
       };
       this.temporaryTabindexCleanups.add(cleanup);
-      targetEl.addEventListener('blur', onBlur);
+      targetEl.addEventListener('blur', onBlur, { once: true });
     }
     targetEl.focus({ preventScroll: true });
     if (this.document.activeElement !== targetEl && addedTabindex) cleanup();

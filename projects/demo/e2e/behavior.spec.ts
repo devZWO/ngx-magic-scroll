@@ -85,17 +85,38 @@ test('keyboard and pointer handoff cancel a pending smooth focus transfer', asyn
   const chapterAction = page.getByRole('button', { name: 'Jump to Chapter 3' });
   const appendixAction = page.getByRole('button', { name: 'Jump to Appendix' });
 
+  const keyboardScrollEnd = page
+    .locator('.viewport')
+    .evaluate(
+      (el) =>
+        new Promise<void>((resolve) =>
+          el.addEventListener('scrollend', () => resolve(), { once: true }),
+        ),
+    );
   await chapterAction.focus();
   await chapterAction.press('Enter');
   await page.keyboard.press('Tab');
   await expect(appendixAction).toBeFocused();
-  await page.waitForTimeout(500);
+  await keyboardScrollEnd;
   await expect(appendixAction).toBeFocused();
 
+  await page.locator('.viewport').evaluate((el) => {
+    el.style.scrollBehavior = 'auto';
+    el.scrollTop = 0;
+    el.style.scrollBehavior = 'smooth';
+  });
+  const pointerScrollEnd = page
+    .locator('.viewport')
+    .evaluate(
+      (el) =>
+        new Promise<void>((resolve) =>
+          el.addEventListener('scrollend', () => resolve(), { once: true }),
+        ),
+    );
   await chapterAction.focus();
   await chapterAction.press('Enter');
   await appendixAction.click();
-  await page.waitForTimeout(500);
+  await pointerScrollEnd;
   await expect(appendixAction).toBeFocused();
   await expect(page.getByRole('status', { name: 'Scroll result' })).toHaveText(
     'Scrolling was not initiated; focus transfer was requested if the target is eligible.',
@@ -112,10 +133,18 @@ test('smooth focus transfer ignores a target removed before scroll completion', 
   const action = page.getByRole('button', { name: 'Jump to Chapter 3' });
   const target = page.locator('#kapitel-3');
 
+  const scrollEnd = page
+    .locator('.viewport')
+    .evaluate(
+      (el) =>
+        new Promise<void>((resolve) =>
+          el.addEventListener('scrollend', () => resolve(), { once: true }),
+        ),
+    );
   await action.focus();
   await action.press('Enter');
   await target.evaluate((el) => el.remove());
-  await page.waitForTimeout(500);
+  await scrollEnd;
   await expect(target).toHaveCount(0);
   await expect(action).toBeFocused();
 });
