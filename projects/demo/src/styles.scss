@@ -127,3 +127,41 @@ mat-drawer-content {
   gap: 6px;
   cursor: pointer;
 }
+
+section:focus,
+section:focus-visible,
+[magicScroll] [id]:focus,
+[magicScroll] [id]:focus-visible {
+  outline: 3px solid #005fb8;
+  outline-offset: -3px;
+  background-color: #f0f7ff;
+  transition:
+    background-color 0.2s ease,
+    outline 0.2s ease;
+}
+
+.demo-accessible-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-block: 12px;
+  background-color: #e8f4fd;
+  border-left: 4px solid #005fb8;
+  border-radius: 4px;
+}
+
+.demo-focus-jump-btn {
+  background-color: #005fb8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-weight: 500;
+  &:hover,
+  &:focus-visible {
+    background-color: #004488;
+    outline: 2px solid #002244;
+  }
+}

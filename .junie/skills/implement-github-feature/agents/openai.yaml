@@ -1,0 +1,3 @@
+interface:
+  display_name: 'Implement GitHub Feature'
+  short_description: 'Implement GitHub feature tickets with TDD, demo, and full docs'

@@ -14,6 +14,7 @@ for (const { behavior, cssSmooth } of [
     await page.getByText('Options', { exact: true }).click();
     await page.getByLabel('Scroll behavior').selectOption(behavior);
     await page.getByLabel('Top offset').selectOption('20');
+    await page.getByText('Options', { exact: true }).click();
     await page.locator('.viewport').evaluate((el, smooth) => {
       el.style.scrollBehavior = smooth ? 'smooth' : 'auto';
     }, cssSmooth);
@@ -41,6 +42,112 @@ for (const { behavior, cssSmooth } of [
     expect(await page.evaluate(() => window.scrollY)).toBe(outerPosition);
   });
 }
+
+for (const { behavior, cssSmooth } of [
+  { behavior: 'instant', cssSmooth: false },
+  { behavior: 'smooth', cssSmooth: false },
+  { behavior: 'auto', cssSmooth: true },
+]) {
+  test(`keyboard focus transfer follows ${behavior} scrolling and does not scroll the outer page`, async ({
+    page,
+  }) => {
+    await page.goto('/document');
+    if (behavior !== 'instant') {
+      await page.getByText('Options', { exact: true }).click();
+      await page.getByLabel('Scroll behavior').selectOption(behavior);
+      await page.getByText('Options', { exact: true }).click();
+    }
+    await page.locator('.viewport').evaluate((el, smooth) => {
+      el.style.scrollBehavior = smooth ? 'smooth' : 'auto';
+    }, cssSmooth);
+
+    const action = page.getByRole('button', { name: 'Jump to Chapter 3' });
+    const target = page.locator('#kapitel-3');
+    await action.focus();
+    const outerPosition = await page.evaluate(() => window.scrollY);
+    await action.press('Enter');
+    await expect(target).toBeFocused();
+    await atOffset(page, '#kapitel-3', '.viewport', 0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(outerPosition);
+
+    await action.focus();
+    await action.press('Enter');
+    await expect(target).toBeFocused();
+    expect(await page.evaluate(() => window.scrollY)).toBe(outerPosition);
+  });
+}
+
+test('keyboard and pointer handoff cancel a pending smooth focus transfer', async ({ page }) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll behavior').selectOption('smooth');
+  await page.getByText('Options', { exact: true }).click();
+  const chapterAction = page.getByRole('button', { name: 'Jump to Chapter 3' });
+  const appendixAction = page.getByRole('button', { name: 'Jump to Appendix' });
+
+  const keyboardScrollEnd = page
+    .locator('.viewport')
+    .evaluate(
+      (el) =>
+        new Promise<void>((resolve) =>
+          el.addEventListener('scrollend', () => resolve(), { once: true }),
+        ),
+    );
+  await chapterAction.focus();
+  await chapterAction.press('Enter');
+  await page.keyboard.press('Tab');
+  await expect(appendixAction).toBeFocused();
+  await keyboardScrollEnd;
+  await expect(appendixAction).toBeFocused();
+
+  await page.locator('.viewport').evaluate((el) => {
+    el.style.scrollBehavior = 'auto';
+    el.scrollTop = 0;
+    el.style.scrollBehavior = 'smooth';
+  });
+  const pointerScrollEnd = page
+    .locator('.viewport')
+    .evaluate(
+      (el) =>
+        new Promise<void>((resolve) =>
+          el.addEventListener('scrollend', () => resolve(), { once: true }),
+        ),
+    );
+  await chapterAction.focus();
+  await chapterAction.press('Enter');
+  await appendixAction.click();
+  await pointerScrollEnd;
+  await expect(appendixAction).toBeFocused();
+  await expect(page.getByRole('status', { name: 'Scroll result' })).toHaveText(
+    'Scrolling was not initiated; focus transfer was requested if the target is eligible.',
+  );
+});
+
+test('smooth focus transfer ignores a target removed before scroll completion', async ({
+  page,
+}) => {
+  await page.goto('/document');
+  await page.getByText('Options', { exact: true }).click();
+  await page.getByLabel('Scroll behavior').selectOption('smooth');
+  await page.getByText('Options', { exact: true }).click();
+  const action = page.getByRole('button', { name: 'Jump to Chapter 3' });
+  const target = page.locator('#kapitel-3');
+
+  const scrollEnd = page
+    .locator('.viewport')
+    .evaluate(
+      (el) =>
+        new Promise<void>((resolve) =>
+          el.addEventListener('scrollend', () => resolve(), { once: true }),
+        ),
+    );
+  await action.focus();
+  await action.press('Enter');
+  await target.evaluate((el) => el.remove());
+  await scrollEnd;
+  await expect(target).toHaveCount(0);
+  await expect(action).toBeFocused();
+});
 
 test('visibility modes distinguish full visibility, each visible edge, hidden and oversized targets', async ({
   page,
@@ -96,9 +203,9 @@ test('scroll spy debounces a burst, uses the final anchor and reacts to a change
   await page.clock.runFor(400);
   await expect(page.locator('output')).toHaveText('');
   await placeAnchor(page, '#kapitel-4', '.viewport', 0);
-  await page.clock.runFor(600);
+  await page.clock.runFor(500);
   await expect(page.locator('output')).toHaveText('');
-  await page.clock.runFor(450);
+  await page.clock.runFor(550);
   await expect(page).toHaveURL(/keep=yes#kapitel-4$/);
   await expect(page.locator('output')).toHaveText('kapitel-4');
   await page.getByLabel('Scroll-spy delay').selectOption('0');

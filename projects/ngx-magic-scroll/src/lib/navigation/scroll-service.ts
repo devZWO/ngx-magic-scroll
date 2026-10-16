@@ -33,6 +33,12 @@ export interface ScrollOptions {
    * Defaults to 0 (element top aligned to topOffset).
    */
   displacement?: number;
+  /**
+   * Whether to transfer DOM focus to the resolved anchor element.
+   * Uses `preventScroll: true` and temporary `tabindex="-1"` for non-focusable targets.
+   * Defaults to `false`.
+   */
+  focus?: boolean;
 }
 
 /**

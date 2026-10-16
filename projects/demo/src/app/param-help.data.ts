@@ -186,4 +186,24 @@ export const PARAM_HELP_INFO: Record<string, ParamHelpInfo> = {
       },
     ],
   },
+  focus: {
+    id: 'focus',
+    title: 'Focus Transfer',
+    propertyKey: 'focus',
+    summary:
+      'Transfers DOM keyboard focus to the target anchor element upon deliberate programmatic navigation.',
+    impact:
+      'Improves accessibility by moving keyboard and screen reader focus directly to the target landmark or anchor without triggering secondary scrolling jumps.',
+    scopes: ['scrollTo'],
+    docLinks: [
+      {
+        label: 'Accessible Focus Transfer',
+        url: 'https://devzwo.github.io/ngx-magic-scroll/recipes/scroll-to-anchor/#accessible-focus-transfer',
+      },
+      {
+        label: 'MagicScrollToOptions.focus API',
+        url: 'https://devzwo.github.io/ngx-magic-scroll/api/interfaces/magicscrolltooptions/#focus',
+      },
+    ],
+  },
 };

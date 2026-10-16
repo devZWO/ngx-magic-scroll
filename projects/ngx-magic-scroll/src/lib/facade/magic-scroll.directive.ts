@@ -34,7 +34,7 @@ import { NO_SCROLL_SOURCE, readScrollSource, ScrollSource } from './scroll-sourc
  */
 export type MagicScrollToOptions = Pick<
   ScrollOptions,
-  'behavior' | 'topOffset' | 'ignoreWhenInView'
+  'behavior' | 'topOffset' | 'ignoreWhenInView' | 'focus'
 >;
 
 /**
@@ -53,6 +53,29 @@ const SCROLL_KEYS = new Set([
   'Spacebar',
   'Space',
 ]);
+
+/**
+ * Determines whether an element is naturally focusable by default or possesses an explicit tabindex.
+ */
+function isNaturallyFocusable(el: HTMLElement): boolean {
+  if (el.hasAttribute('tabindex')) {
+    return true;
+  }
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'button' || tag === 'select' || tag === 'textarea') {
+    return !(el as HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement).disabled;
+  }
+  if (tag === 'input') {
+    return (el as HTMLInputElement).type !== 'hidden' && !(el as HTMLInputElement).disabled;
+  }
+  if (tag === 'a' || tag === 'area') {
+    return el.hasAttribute('href');
+  }
+  if (tag === 'iframe') {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Determines whether a keyboard event target is an interactive or editable text control.
@@ -195,6 +218,18 @@ export class MagicScrollDirective {
   private retryObserver?: MutationObserver;
   /** Timeout timer bounding the lifetime of destination retries to prevent memory leaks from non-existent anchors. */
   private retryTimeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Cleanups for elements given temporary tabindex="-1" to restore DOM state on blur or directive destruction. */
+  private readonly temporaryTabindexCleanups = new Set<() => void>();
+  /** Target element pending focus transfer after smooth scroll completion. */
+  private pendingFocusTarget?: HTMLElement;
+  /** Active scrollend event handler waiting for smooth scroll completion. */
+  private scrollEndHandler?: () => void;
+  /** Active EventTarget on which scrollEndHandler was registered. */
+  private scrollEndTarget?: EventTarget;
+  /** Safety timeout preventing a missed scrollend event from retaining a pending focus request. */
+  private focusTimeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Element focused when the pending focus transfer was initiated. */
+  private focusInitiator?: Element | null;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -207,6 +242,11 @@ export class MagicScrollDirective {
       this.document.defaultView?.removeEventListener('resize', this.onResize);
       clearTimeout(this.timer);
       this.cancelDestinationRetry();
+      this.cancelScheduledFocus();
+      for (const cleanup of this.temporaryTabindexCleanups) {
+        cleanup();
+      }
+      this.temporaryTabindexCleanups.clear();
       this.pendingDestination = null;
     });
 
@@ -286,6 +326,7 @@ export class MagicScrollDirective {
 
         if (frag) {
           if (!this.isInternalNavigation()) {
+            this.cancelScheduledFocus();
             this.userInterrupted = false;
             this.savedDisplacement = 0;
             this.pendingDestination = frag;
@@ -300,6 +341,7 @@ export class MagicScrollDirective {
             }
           }
         } else {
+          this.cancelScheduledFocus();
           this.savedDisplacement = 0;
           this.pendingDestination = null;
           this.cancelDestinationRetry();
@@ -344,14 +386,23 @@ export class MagicScrollDirective {
    * Explicitly scrolls the viewport to the target anchor identifier.
    *
    * @param anchor - Target anchor ID (with or without leading `#`).
-   * @param options - Per-call scroll overrides (behavior, top offset, ignoreWhenInView).
+   * @param options - Per-call scroll overrides (behavior, top offset, ignoreWhenInView, focus).
    * @returns `true` if the target anchor was found and scrolling initiated; `false` otherwise.
    *
    * @remarks
    * Successful execution immediately synchronizes both `liveAnchor` and the router `fragment`
    * with the target anchor, overriding any in-flight debounce delays.
+   *
+   * When `options.focus` is true, DOM focus is transferred to the resolved anchor element using
+   * `preventScroll: true` without triggering secondary browser scrolling. For non-focusable containers,
+   * a temporary `tabindex="-1"` is applied and removed upon blur or directive destruction.
    */
   scrollTo(anchor: string, options: MagicScrollToOptions = {}): boolean {
+    this.refreshTarget();
+    this.cancelScheduledFocus();
+    const clean = anchor.replace(/^#/, '');
+    const targetEl = this.anchors().find((el) => el.id === clean);
+    const willScroll = targetEl ? this.willScroll(targetEl, options) : false;
     const executed = this.execute(anchor, {
       behavior: this.options().behavior.interaction,
       ignoreWhenInView: this.options().ignoreWhenInView,
@@ -359,12 +410,19 @@ export class MagicScrollDirective {
       displacement: 0,
     });
     if (executed) {
-      const clean = anchor.replace(/^#/, '');
       this.liveAnchor.set(clean);
       this.savedDisplacement = 0;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
       this.fragment.set(clean);
+    }
+    if (options.focus && targetEl) {
+      const behavior = options.behavior ?? this.options().behavior.interaction;
+      if (executed && willScroll && this.hasSmoothScrollBehavior(behavior)) {
+        this.scheduleFocus(targetEl);
+      } else {
+        this.applyFocus(targetEl);
+      }
     }
     return executed;
   }
@@ -519,6 +577,40 @@ export class MagicScrollDirective {
   }
 
   /**
+   * Determines whether the requested navigation will change the scroll position after clamping.
+   */
+  private willScroll(targetEl: HTMLElement, options: MagicScrollToOptions): boolean {
+    const scrollable =
+      this.scrollable() ??
+      (this.document.scrollingElement as HTMLElement | null) ??
+      this.document.documentElement;
+    const isDocument =
+      scrollable === this.document.documentElement || scrollable === this.document.body;
+    const containerTop = isDocument ? 0 : scrollable.getBoundingClientRect().top;
+    const viewportHeight = isDocument
+      ? this.document.documentElement.clientHeight
+      : scrollable.clientHeight;
+    const topOffset = options.topOffset ?? this.offset();
+    const delta = targetEl.getBoundingClientRect().top - containerTop - topOffset;
+    const maxScrollTop =
+      scrollable.scrollHeight > 0 && viewportHeight > 0
+        ? Math.max(0, scrollable.scrollHeight - viewportHeight)
+        : Infinity;
+    const targetScrollTop = Math.min(Math.max(scrollable.scrollTop + delta, 0), maxScrollTop);
+    return Math.abs(targetScrollTop - scrollable.scrollTop) >= 1;
+  }
+
+  /**
+   * Resolves whether the browser will animate this request, including `auto` with smooth CSS behavior.
+   */
+  private hasSmoothScrollBehavior(behavior: ScrollBehavior): boolean {
+    if (behavior === 'smooth') return true;
+    if (behavior !== 'auto') return false;
+    const scrollable = this.scrollable() ?? this.document.documentElement;
+    return this.document.defaultView?.getComputedStyle(scrollable).scrollBehavior === 'smooth';
+  }
+
+  /**
    * Realigns the viewport instantly to preserve anchor-relative reading position
    * during asynchronous data updates, container resizes, or header dimension changes.
    *
@@ -584,10 +676,92 @@ export class MagicScrollDirective {
   }
 
   /**
+   * Applies DOM focus safely to the target anchor element using `preventScroll: true`.
+   * Automatically assigns a temporary `tabindex="-1"` to non-focusable landmark containers
+   * and registers a one-time blur listener to cleanly remove it when focus shifts away.
+   */
+  private applyFocus(targetEl: HTMLElement): void {
+    if (
+      !this.document.defaultView ||
+      typeof targetEl.focus !== 'function' ||
+      !targetEl.isConnected ||
+      !this.anchors().includes(targetEl)
+    ) {
+      return;
+    }
+    const addedTabindex = !isNaturallyFocusable(targetEl);
+    let cleanup: (() => void) | undefined;
+    if (addedTabindex) {
+      targetEl.setAttribute('tabindex', '-1');
+      const onBlur = () => cleanupFn();
+      const cleanupFn = () => {
+        targetEl.removeEventListener('blur', onBlur);
+        if (targetEl.getAttribute('tabindex') === '-1') {
+          targetEl.removeAttribute('tabindex');
+        }
+        this.temporaryTabindexCleanups.delete(cleanupFn);
+      };
+      cleanup = cleanupFn;
+      this.temporaryTabindexCleanups.add(cleanupFn);
+      targetEl.addEventListener('blur', onBlur, { once: true });
+    }
+    targetEl.focus({ preventScroll: true });
+    if (this.document.activeElement !== targetEl && cleanup) {
+      cleanup();
+    }
+  }
+
+  /**
+   * Schedules focus transfer to execute upon smooth scroll completion (`scrollend`).
+   */
+  private scheduleFocus(targetEl: HTMLElement): void {
+    this.refreshTarget();
+    this.cancelScheduledFocus();
+    this.pendingFocusTarget = targetEl;
+    this.focusInitiator = this.document.activeElement;
+    this.document.addEventListener('focusin', this.onFocusIn);
+    this.document.addEventListener('keydown', this.onFocusTransferKeyDown);
+    this.document.addEventListener('pointerdown', this.onFocusTransferPointerDown, true);
+    this.document.addEventListener('wheel', this.onFocusScrollIntent, { passive: true });
+    this.document.addEventListener('touchstart', this.onFocusScrollIntent, { passive: true });
+    this.document.addEventListener('touchmove', this.onFocusScrollIntent, { passive: true });
+    const target = this.target!;
+    this.scrollEndTarget = target;
+    this.scrollEndHandler = () => {
+      this.cancelScheduledFocus();
+      this.applyFocus(targetEl);
+    };
+    target.addEventListener('scrollend', this.scrollEndHandler, { once: true });
+    this.focusTimeoutTimer = setTimeout(() => this.cancelScheduledFocus(), 5000);
+  }
+
+  /**
+   * Cancels any pending scheduled focus transfer and unregisters the `scrollend` listener.
+   */
+  private cancelScheduledFocus(): void {
+    if (this.scrollEndHandler && this.scrollEndTarget) {
+      this.scrollEndTarget.removeEventListener('scrollend', this.scrollEndHandler);
+      this.scrollEndHandler = undefined;
+      this.scrollEndTarget = undefined;
+    }
+    clearTimeout(this.focusTimeoutTimer);
+    this.focusTimeoutTimer = undefined;
+    this.document.removeEventListener('focusin', this.onFocusIn);
+    this.document.removeEventListener('keydown', this.onFocusTransferKeyDown);
+    this.document.removeEventListener('pointerdown', this.onFocusTransferPointerDown, true);
+    this.document.removeEventListener('wheel', this.onFocusScrollIntent);
+    this.document.removeEventListener('touchstart', this.onFocusScrollIntent);
+    this.document.removeEventListener('touchmove', this.onFocusScrollIntent);
+    this.focusInitiator = undefined;
+    this.pendingFocusTarget = undefined;
+  }
+
+  /**
    * Detaches all registered event listeners to ensure clean teardown without memory leaks.
    */
   private detachListeners(): void {
     if (!this.target) return;
+    this.cancelScheduledFocus();
     this.target.removeEventListener('scroll', this.onScroll);
     this.target.removeEventListener('wheel', this.onUserIntent);
     this.target.removeEventListener('touchstart', this.onUserIntent);
@@ -604,6 +778,7 @@ export class MagicScrollDirective {
     this.userInterrupted = true;
     this.pendingDestination = null;
     this.cancelDestinationRetry();
+    this.cancelScheduledFocus();
   };
 
   /**
@@ -626,6 +801,41 @@ export class MagicScrollDirective {
       this.userInterrupted = true;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
+      this.cancelScheduledFocus();
+    }
+  };
+
+  private readonly onFocusScrollIntent = () => {
+    this.cancelScheduledFocus();
+  };
+
+  private readonly onFocusIn = (event: Event) => {
+    if (this.pendingFocusTarget && event.target !== this.focusInitiator) {
+      this.cancelScheduledFocus();
+    }
+  };
+
+  private readonly onFocusTransferKeyDown = (event: Event) => {
+    if (!(event instanceof KeyboardEvent)) return;
+    if (event.key === 'Tab') {
+      this.cancelScheduledFocus();
+      return;
+    }
+    if (isEditableTarget(event.target)) return;
+    if (SCROLL_KEYS.has(event.key)) {
+      this.cancelScheduledFocus();
+    }
+  };
+
+  private readonly onFocusTransferPointerDown = (event: Event) => {
+    const target = event.target;
+    if (
+      this.pendingFocusTarget &&
+      target instanceof Node &&
+      target !== this.focusInitiator &&
+      !this.focusInitiator?.contains(target)
+    ) {
+      this.cancelScheduledFocus();
     }
   };
 
