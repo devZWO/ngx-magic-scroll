@@ -38,10 +38,12 @@ import {
       [(onlyPrefixed)]="onlyPrefixed"
       [(strategy)]="strategy"
       [(focus)]="focusTransfer"
+      [(preserveOnLayoutChange)]="preserveOnLayoutChange"
       [showVisibility]="true"
       [showSpy]="true"
       [showStrategy]="true"
       [showFocusToggle]="true"
+      [showPreserveOnLayoutChange]="true"
     />
     <div class="demo-accessible-banner" role="region" aria-label="Accessibility quick actions">
       <span>Accessible jump actions (with focus):</span>
@@ -80,6 +82,19 @@ import {
               <div [scrollAnchor]="'spezial-notiz'" class="demo-note">
                 <p><strong>Explicit scrollAnchor:</strong> Eligible in explicit and all modes.</p>
               </div>
+              <details class="demo-accordion">
+                <summary>Toggle asynchronous layout reflow (Accordion)</summary>
+                <div class="details-content">
+                  <p>
+                    Expanding or collapsing this panel alters content dimensions within the region
+                    without emitting new data through <code>scrollSource</code>.
+                  </p>
+                  <p>
+                    With <code>preserveOnLayoutChange</code> enabled, active reading positions below
+                    this accordion remain locked smoothly without disorienting jumps.
+                  </p>
+                </div>
+              </details>
             }
             @if (id === 'kapitel-2') {
               <div id="anhang-detail" class="demo-appendix">
@@ -121,6 +136,7 @@ export class DocumentExample {
   readonly onlyPrefixed = signal(true);
   readonly strategy = signal<AnchorStrategyOption>('prefix');
   readonly focusTransfer = signal(false);
+  readonly preserveOnLayoutChange = signal(false);
   readonly result = signal('Choose a target or scroll within the document.');
   private readonly scroll = viewChild.required(MagicScrollDirective);
   readonly options = computed<MagicScrollOptions>(() => {
@@ -143,6 +159,7 @@ export class DocumentExample {
       activationThreshold: this.activationThreshold(),
       ignoreWhenInView: this.visibility(),
       debounceTime: this.debounceTime(),
+      preserveOnLayoutChange: this.preserveOnLayoutChange(),
       ...selectionConfig,
     };
   });

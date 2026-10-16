@@ -218,6 +218,8 @@ export class MagicScrollDirective {
   private retryObserver?: MutationObserver;
   /** Timeout timer bounding the lifetime of destination retries to prevent memory leaks from non-existent anchors. */
   private retryTimeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Handle for the active coalesced requestAnimationFrame layout correction. */
+  private layoutCorrectionFrameId?: number;
   /** Cleanups for elements given temporary tabindex="-1" to restore DOM state on blur or directive destruction. */
   private readonly temporaryTabindexCleanups = new Set<() => void>();
   /** Target element pending focus transfer after smooth scroll completion. */
@@ -243,6 +245,7 @@ export class MagicScrollDirective {
       clearTimeout(this.timer);
       this.cancelDestinationRetry();
       this.cancelScheduledFocus();
+      this.cancelLayoutPreservation();
       for (const cleanup of this.temporaryTabindexCleanups) {
         cleanup();
       }
@@ -267,6 +270,26 @@ export class MagicScrollDirective {
         const observer = new ResizeObserver(measure);
         observer.observe(header);
         onCleanup(() => observer.disconnect());
+      }
+    });
+
+    // Phase 1b: Region layout reflow observation & animation frame coalesced preservation.
+    // Observes host dimensions when preserveOnLayoutChange is enabled, coalescing rapid
+    // asynchronous layout changes (e.g. image loads, form expansions) into a single preservation per frame.
+    afterRenderEffect((onCleanup) => {
+      if (
+        this.options().preserveOnLayoutChange &&
+        typeof ResizeObserver !== 'undefined' &&
+        typeof window !== 'undefined'
+      ) {
+        const observer = new ResizeObserver(() => {
+          this.scheduleLayoutPreservation();
+        });
+        observer.observe(this.host);
+        onCleanup(() => {
+          observer.disconnect();
+          this.cancelLayoutPreservation();
+        });
       }
     });
 
@@ -327,6 +350,7 @@ export class MagicScrollDirective {
         if (frag) {
           if (!this.isInternalNavigation()) {
             this.cancelScheduledFocus();
+            this.cancelLayoutPreservation();
             this.userInterrupted = false;
             this.savedDisplacement = 0;
             this.pendingDestination = frag;
@@ -342,6 +366,7 @@ export class MagicScrollDirective {
           }
         } else {
           this.cancelScheduledFocus();
+          this.cancelLayoutPreservation();
           this.savedDisplacement = 0;
           this.pendingDestination = null;
           this.cancelDestinationRetry();
@@ -414,6 +439,7 @@ export class MagicScrollDirective {
       this.savedDisplacement = 0;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
+      this.cancelLayoutPreservation();
       this.fragment.set(clean);
     }
     if (options.focus && targetEl) {
@@ -633,6 +659,33 @@ export class MagicScrollDirective {
   }
 
   /**
+   * Schedules a coalesced layout realignment via requestAnimationFrame.
+   * Batches multiple synchronous or rapid descendant reflows into a single correction per frame.
+   */
+  private scheduleLayoutPreservation(): void {
+    if (!this.initialized || this.userInterrupted || typeof window === 'undefined') {
+      return;
+    }
+    if (this.layoutCorrectionFrameId !== undefined) {
+      return;
+    }
+    this.layoutCorrectionFrameId = window.requestAnimationFrame(() => {
+      this.layoutCorrectionFrameId = undefined;
+      this.preserve();
+    });
+  }
+
+  /**
+   * Cancels any pending requestAnimationFrame layout realignment.
+   */
+  private cancelLayoutPreservation(): void {
+    if (this.layoutCorrectionFrameId !== undefined && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(this.layoutCorrectionFrameId);
+      this.layoutCorrectionFrameId = undefined;
+    }
+  }
+
+  /**
    * Captures and stores the pixel displacement between the active anchor's top edge
    * and the visible activation reading boundary (`containerTop + topOffset`).
    */
@@ -779,6 +832,7 @@ export class MagicScrollDirective {
     this.pendingDestination = null;
     this.cancelDestinationRetry();
     this.cancelScheduledFocus();
+    this.cancelLayoutPreservation();
   };
 
   /**
@@ -802,6 +856,7 @@ export class MagicScrollDirective {
       this.pendingDestination = null;
       this.cancelDestinationRetry();
       this.cancelScheduledFocus();
+      this.cancelLayoutPreservation();
     }
   };
 

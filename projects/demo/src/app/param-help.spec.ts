@@ -42,6 +42,7 @@ describe('ParamHelpButton', () => {
         'debounceTime',
         'anchorSelection',
         'restoreOnDataChange',
+        'preserveOnLayoutChange',
       ];
 
       for (const id of expectedIds) {

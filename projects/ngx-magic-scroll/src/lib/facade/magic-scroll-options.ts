@@ -43,6 +43,12 @@ export interface MagicScrollOptions {
   restoreOnDataChange?: boolean;
   /** Preserve the current anchor on window resize and measured header-height changes. */
   preserveOnResize?: boolean;
+  /**
+   * Preserve anchor-relative reading position when region content reflows
+   * (e.g. image loads, form expansions, accordion toggles) without changing scrollSource.
+   * Defaults to false (explicit opt-in).
+   */
+  preserveOnLayoutChange?: boolean;
 }
 
 export interface ResolvedMagicScrollOptions {
@@ -57,6 +63,7 @@ export interface ResolvedMagicScrollOptions {
   ignoreWhenInView: NonNullable<ScrollOptions['ignoreWhenInView']>;
   restoreOnDataChange: boolean;
   preserveOnResize: boolean;
+  preserveOnLayoutChange: boolean;
 }
 
 const defaults: ResolvedMagicScrollOptions = {
@@ -71,6 +78,7 @@ const defaults: ResolvedMagicScrollOptions = {
   ignoreWhenInView: 'none',
   restoreOnDataChange: true,
   preserveOnResize: true,
+  preserveOnLayoutChange: false,
 };
 
 export function resolveMagicScrollOptions(
@@ -92,6 +100,7 @@ export function resolveMagicScrollOptions(
     ignoreWhenInView: options.ignoreWhenInView ?? parent.ignoreWhenInView,
     restoreOnDataChange: options.restoreOnDataChange ?? parent.restoreOnDataChange,
     preserveOnResize: options.preserveOnResize ?? parent.preserveOnResize,
+    preserveOnLayoutChange: options.preserveOnLayoutChange ?? parent.preserveOnLayoutChange,
   };
 }
 

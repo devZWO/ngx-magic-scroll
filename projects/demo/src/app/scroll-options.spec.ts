@@ -16,11 +16,13 @@ import { AnchorStrategyOption, ScrollOptionsPanel, VisibilityMode } from './scro
       [(onlyPrefixed)]="onlyPrefixed"
       [(strategy)]="strategy"
       [(focus)]="focus"
+      [(preserveOnLayoutChange)]="preserveOnLayoutChange"
       [showVisibility]="showVisibility()"
       [showSpy]="showSpy()"
       [showStrategy]="showStrategy()"
       [showFocusToggle]="showFocusToggle()"
       [showOverlayToggle]="showOverlayToggle()"
+      [showPreserveOnLayoutChange]="showPreserveOnLayoutChange()"
     />
   `,
 })
@@ -35,12 +37,14 @@ class TestHost {
   readonly onlyPrefixed = signal(true);
   readonly strategy = signal<AnchorStrategyOption>('prefix');
   readonly focus = signal(false);
+  readonly preserveOnLayoutChange = signal(false);
 
   readonly showVisibility = signal(false);
   readonly showSpy = signal(false);
   readonly showStrategy = signal(false);
   readonly showFocusToggle = signal(false);
   readonly showOverlayToggle = signal(true);
+  readonly showPreserveOnLayoutChange = signal(false);
 }
 
 describe('ScrollOptionsPanel', () => {
@@ -78,11 +82,13 @@ describe('ScrollOptionsPanel', () => {
       expect(component.onlyPrefixed()).toBe(true);
       expect(component.strategy()).toBe('prefix');
       expect(component.focus()).toBe(false);
+      expect(component.preserveOnLayoutChange()).toBe(false);
       expect(component.showVisibility()).toBe(false);
       expect(component.showSpy()).toBe(false);
       expect(component.showStrategy()).toBe(false);
       expect(component.showFocusToggle()).toBe(false);
       expect(component.showOverlayToggle()).toBe(true);
+      expect(component.showPreserveOnLayoutChange()).toBe(false);
     });
 
     it('updates behavior only for valid options in setBehavior', () => {
@@ -321,17 +327,42 @@ describe('ScrollOptionsPanel', () => {
       expect(host.focus()).toBe(true);
     });
 
+    it('conditionally renders and binds preserveOnLayoutChange toggle', () => {
+      const { fixture, host } = createHost();
+      fixture.detectChanges();
+
+      let compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).not.toContain('Preserve position on layout change');
+
+      host.showPreserveOnLayoutChange.set(true);
+      fixture.detectChanges();
+
+      compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.textContent).toContain('Preserve position on layout change');
+
+      const layoutChangeInput = compiled.querySelector(
+        '#scroll-opt-layout-change',
+      ) as HTMLInputElement | null;
+      expect(layoutChangeInput).not.toBeNull();
+      expect(layoutChangeInput!.checked).toBe(false);
+
+      layoutChangeInput!.click();
+      fixture.detectChanges();
+      expect(host.preserveOnLayoutChange()).toBe(true);
+    });
+
     it('renders parameter help buttons for all configurable fields', () => {
       const { fixture, host } = createHost();
       host.showVisibility.set(true);
       host.showSpy.set(true);
       host.showStrategy.set(true);
       host.showFocusToggle.set(true);
+      host.showPreserveOnLayoutChange.set(true);
       fixture.detectChanges();
 
       const compiled = fixture.nativeElement as HTMLElement;
       const helpElements = Array.from(compiled.querySelectorAll('app-param-help'));
-      expect(helpElements.length).toBe(9);
+      expect(helpElements.length).toBe(10);
     });
   });
 });

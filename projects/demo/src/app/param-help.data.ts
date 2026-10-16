@@ -186,6 +186,26 @@ export const PARAM_HELP_INFO: Record<string, ParamHelpInfo> = {
       },
     ],
   },
+  preserveOnLayoutChange: {
+    id: 'preserveOnLayoutChange',
+    title: 'Preserve on Layout Change',
+    propertyKey: 'preserveOnLayoutChange',
+    summary:
+      'Preserves the active reading position when content inside the region reflows asynchronously (e.g. image loads, form expansions, accordion toggles) without changes to scrollSource.',
+    impact:
+      'Prevents disorienting page jumps during dynamic layout expansions while maintaining the exact pixel displacement inside the active section.',
+    scopes: ['provideMagicScroll', '[scrollOptions]'],
+    docLinks: [
+      {
+        label: 'Position Preservation Policies',
+        url: 'https://devzwo.github.io/ngx-magic-scroll/concepts/position-preservation/#different-causes-have-different-policies',
+      },
+      {
+        label: 'MagicScrollOptions.preserveOnLayoutChange API',
+        url: 'https://devzwo.github.io/ngx-magic-scroll/api/interfaces/magicscrolloptions/#preserveonlayoutchange',
+      },
+    ],
+  },
   focus: {
     id: 'focus',
     title: 'Focus Transfer',
