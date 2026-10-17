@@ -1,5 +1,14 @@
 # Changelog
 
+## Release v1.1.0
+
+- Add opt-in `preserveOnLayoutChange` configuration option to maintain section-relative scroll positions during asynchronous layout reflows (e.g., accordions, lazy images, form expansions).
+- Preserve section-relative pixel displacement (`displacement`) across automatic layout corrections and data updates to keep the reader's exact reading position intact.
+- Add accessible focus management (`focus: true`) to `scrollTo()` with temporary `tabindex="-1"` handling and completion coordination for smooth scrolling.
+- Optimize layout reflow tracking using region-scoped `ResizeObserver` and `requestAnimationFrame` coalescing to prevent layout thrashing.
+- Guard against scroll interruptions by deferring layout preservation during active smooth scrolling and skipping redundant sub-pixel (`< 1px`) scroll adjustments.
+- Update demo application with layout preservation controls, accordion examples, accessible navigation toggles, and refreshed architecture documentation.
+
 ## Release v1.0.0
 
 - Handle subsequent Angular router fragment navigations automatically after initial page load without requiring consumer coordination.
