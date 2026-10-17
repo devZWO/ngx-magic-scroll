@@ -112,6 +112,20 @@ export type AnchorStrategyOption = 'prefix' | 'multi-prefix' | 'explicit' | 'all
         </div>
       }
 
+      @if (showPreserveOnLayoutChange()) {
+        <div class="option-item checkbox-item">
+          <label for="scroll-opt-layout-change" class="checkbox-label">
+            <input
+              id="scroll-opt-layout-change"
+              type="checkbox"
+              [checked]="preserveOnLayoutChange()"
+              (change)="preserveOnLayoutChange.set(!preserveOnLayoutChange())"
+            />Preserve position on layout change
+          </label>
+          <app-param-help paramId="preserveOnLayoutChange" />
+        </div>
+      }
+
       @if (showVisibility()) {
         <div class="option-item">
           <div class="option-header">
@@ -196,11 +210,13 @@ export class ScrollOptionsPanel {
   readonly onlyPrefixed = model(true);
   readonly strategy = model<AnchorStrategyOption>('prefix');
   readonly focus = model(false);
+  readonly preserveOnLayoutChange = model(false);
   readonly showVisibility = input(false);
   readonly showSpy = input(false);
   readonly showStrategy = input(false);
   readonly showFocusToggle = input(false);
   readonly showOverlayToggle = input(true);
+  readonly showPreserveOnLayoutChange = input(false);
   setBehavior(value: string) {
     if (value === 'instant' || value === 'smooth' || value === 'auto') this.behavior.set(value);
   }

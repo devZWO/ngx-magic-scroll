@@ -16,6 +16,7 @@ After initial restoration, content and layout can shift dynamically due to async
 | External router fragment change                | Route destination anchor     | Aligned to heading (`displacement = 0`)                  | Restore instantly                                               |
 | Later ready source change                      | Current live visible section | Preserves saved pixel displacement (`savedDisplacement`) | Correct instantly without resetting to section top              |
 | Window resize or measured header-height change | Current live visible section | Preserves saved pixel displacement (`savedDisplacement`) | Realign instantly to maintain section pixel offset              |
+| Region content reflow (layout expansion/image) | Current live visible section | Preserves saved pixel displacement (`savedDisplacement`) | Opt-in (`preserveOnLayoutChange: true`); coalesced via rAF      |
 
 The distinction between initial URL fragments, live visible sections, and intentional user navigation ensures seamless reading continuity. When reading halfway through a 1200px card, layout reflows preserve the section's relative pixel position rather than resetting to the card header.
 
@@ -84,6 +85,38 @@ Explicit programmatic calls (`scrollTo('card-2')`) and external router fragment 
 ### 4. Deterministic element removal handling
 
 If the active section element is removed from the DOM during a data change or layout update, `preserve()` gracefully skips realignment and maintains the current viewport position without arbitrary jumps.
+
+## Region content reflow with preserveOnLayoutChange
+
+In dynamic web applications, presentation-level elements within a scroll region frequently change dimensions without any updates to the fetched data source (`scrollSource`). Common examples include:
+
+- Expanding an accordion or detail disclosure panel above the reader's active section.
+- Asynchronous image loads settling to their natural height without pre-set aspect ratios.
+- Conditional validation messages or interactive preview cards appearing dynamically.
+
+When `preserveOnLayoutChange: true` is enabled, `MagicScrollDirective` attaches a region-scoped `ResizeObserver` to the host element. Layout shifts are coalesced per animation frame (`requestAnimationFrame`) to eliminate layout thrashing and feedback loops.
+
+```mermaid
+graph TD
+    A[Region Content Reflow / Image Loaded / Accordion Expanded] -->|ResizeObserver Callback| B{preserveOnLayoutChange Enabled?}
+    B -->|No| C[Ignore Reflow]
+    B -->|Yes| D{Initialized & Not Interrupted?}
+    D -->|No / User Scrolling| E[Suppress Realignment]
+    D -->|Yes| F{rAF Already Queued?}
+    F -->|Yes| G[Coalesce into Existing Frame]
+    F -->|No| H[Queue requestAnimationFrame]
+    H --> I[Execute preserve()]
+    I --> J[Calculate Delta against liveAnchor & savedDisplacement]
+    J --> K{Delta === 0 or Anchored by Browser?}
+    K -->|Yes| L[No-op: Native overflow-anchor already compensated]
+    K -->|No| M[Scrollable.scrollTo: Adjust scrollTop instantly]
+```
+
+### Supported scenarios vs unsupported modifications
+
+- **Supported (Dimension Changes)**: Any internal DOM expansion or contraction that changes box dimensions (such as toggling accordions, inserting child cards, or loading images) alters the region's layout and triggers instant, seamless realignment.
+- **Unsupported (Position-Only Shifts)**: Pure CSS coordinate changes (such as `transform: translateY(...)` or CSS `top` transitions) that do not alter the box geometry or layout dimensions of elements in the DOM cannot be observed by `ResizeObserver`.
+- **User Gesture Priority**: If the reader is actively scrolling via touch gestures, wheel events, or navigation keys, automated layout realignments yield immediately to user navigation.
 
 ## Header measurement defines the top offset
 

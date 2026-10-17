@@ -30,7 +30,7 @@ class Observer {
   static instances: Observer[] = [];
   observe = vi.fn();
   disconnect = vi.fn();
-  constructor(readonly callback: () => void) {
+  constructor(readonly callback: (entries?: unknown[]) => void) {
     Observer.instances.push(this);
   }
 }
@@ -85,6 +85,7 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
       ignoreWhenInView: 'none',
       restoreOnDataChange: false,
       preserveOnResize: false,
+      preserveOnLayoutChange: false,
       behavior: { restoration: 'smooth' },
     }),
   ).toEqual({
@@ -98,6 +99,7 @@ it('merges provider defaults hierarchically and preserves explicit false, zero a
     ignoreWhenInView: 'none',
     restoreOnDataChange: false,
     preserveOnResize: false,
+    preserveOnLayoutChange: false,
     behavior: { restoration: 'smooth', interaction: 'instant' },
   });
 });
@@ -1595,22 +1597,23 @@ describe('subsequent router fragment navigation', () => {
       );
     });
 
-    it('does not preserve position on data change when user has already interrupted', () => {
-      const { container, host, render, scroll } = setup('item-1');
+    it('cancels pending initial destination retry on user interruption and does not trigger retry on subsequent data changes', () => {
+      const { container, host, render, scroll } = setup('item-not-ready');
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).not.toHaveBeenCalled();
+
+      // User interrupts while destination is still pending
+      container.dispatchEvent(new Event('wheel'));
+
+      // Subsequent data change arrives with restoreOnDataChange: false
+      host.options.set({ restoreOnDataChange: false });
       host.source.set([1, 2]);
       render();
 
-      expect(scroll.scroll).toHaveBeenCalledTimes(1);
-
-      // User interrupts
-      container.dispatchEvent(new Event('wheel'));
-
-      // Subsequent data change
-      host.source.set([1, 2, 3]);
-      render();
-
-      // Should not trigger preservation
-      expect(scroll.scroll).toHaveBeenCalledTimes(1);
+      // Canceled initial destination should not have been executed
+      expect(scroll.scroll).not.toHaveBeenCalled();
     });
 
     it('cleans up retry observer and timers when directive is destroyed', () => {
@@ -2305,6 +2308,508 @@ describe('subsequent router fragment navigation', () => {
       (host.scroll() as unknown as { target?: unknown }).target = undefined;
       expect(host.scroll().scrollTo('item-1', { focus: true, behavior: 'smooth' })).toBe(true);
       document.dispatchEvent(new Event('scrollend'));
+    });
+  });
+
+  describe('preserveOnLayoutChange and region-scoped layout observation', () => {
+    it('resolves preserveOnLayoutChange defaults to false and supports hierarchical overrides', () => {
+      const defaults = TestBed.inject(MAGIC_SCROLL_OPTIONS);
+      expect(defaults.preserveOnLayoutChange).toBe(false);
+
+      const root = Injector.create({ providers: [provideMagicScroll()], parent: Injector.NULL });
+      expect(root.get(MAGIC_SCROLL_OPTIONS).preserveOnLayoutChange).toBe(false);
+
+      const parent = Injector.create({
+        providers: [provideMagicScroll({ preserveOnLayoutChange: true })],
+        parent: root,
+      });
+      expect(parent.get(MAGIC_SCROLL_OPTIONS).preserveOnLayoutChange).toBe(true);
+
+      const child = Injector.create({
+        providers: [provideMagicScroll({ preserveOnLayoutChange: false })],
+        parent,
+      });
+      expect(child.get(MAGIC_SCROLL_OPTIONS).preserveOnLayoutChange).toBe(false);
+    });
+
+    it('attaches ResizeObserver to host only when preserveOnLayoutChange is true', () => {
+      Observer.instances = [];
+      const { fixture, host, region, render } = setup(null);
+      host.source.set([]);
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: false });
+      render();
+
+      expect(
+        Observer.instances.filter((obs) => obs.observe.mock.calls.some(([el]) => el === region))
+          .length,
+      ).toBe(0);
+
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      render();
+
+      const hostObservers = Observer.instances.filter((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      );
+      expect(hostObservers.length).toBe(1);
+      expect(hostObservers[0].observe).toHaveBeenCalledWith(region);
+
+      fixture.destroy();
+      expect(hostObservers[0].disconnect).toHaveBeenCalled();
+    });
+
+    it('preserves active anchor relative displacement upon layout change callback via requestAnimationFrame', () => {
+      const { host, container, region, render, scroll } = setup('item-2');
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+      container.getBoundingClientRect = () => rect(100, 500);
+      item1.getBoundingClientRect = () => rect(-500);
+      item2.getBoundingClientRect = () => rect(150); // 150 - 100 = 50px displacement
+      container.dispatchEvent(new Event('scroll'));
+      render();
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+      expect(hostObserver).toBeDefined();
+
+      expect(hostObserver.observe).toHaveBeenCalledWith(item1);
+      expect(hostObserver.observe).toHaveBeenCalledWith(item2);
+
+      let rafCallback: FrameRequestCallback | null = null;
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        rafCallback = cb;
+        return 42;
+      });
+
+      // 1. Initial measurement entry with matching dimensions should be filtered out
+      hostObserver.callback([
+        {
+          target: item1,
+          contentRect: { width: 100, height: 30 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+      expect(rafSpy).not.toHaveBeenCalled();
+
+      // 2. Entry for an element not previously recorded initializes without triggering
+      const unrecordedEl = document.createElement('div');
+      hostObserver.callback([
+        {
+          target: unrecordedEl,
+          contentRect: { width: 50, height: 50 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+      expect(rafSpy).not.toHaveBeenCalled();
+
+      // 3. Entry with changed dimensions triggers layout preservation
+      hostObserver.callback([
+        {
+          target: item1,
+          contentRect: { width: 100, height: 80 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+      expect(rafSpy).toHaveBeenCalledTimes(1);
+
+      // 4. Entry without contentRect falling back to getBoundingClientRect
+      item1.getBoundingClientRect = () => rect(-500, 120);
+      hostObserver.callback([
+        {
+          target: item1,
+        } as unknown as ResizeObserverEntry,
+      ]);
+      expect(rafSpy).toHaveBeenCalledTimes(1); // Already queued, coalesced
+
+      // 5. Entry on element without getBoundingClientRect
+      hostObserver.callback([
+        {
+          target: {} as Element,
+        } as unknown as ResizeObserverEntry,
+      ]);
+
+      scroll.scroll.mockClear();
+      rafCallback!(performance.now());
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({
+          behavior: 'instant',
+          displacement: 50,
+        }),
+      );
+    });
+
+    it('observes anchor reflows and realigns displacement in a fixed-height scroll container with native scroll anchoring disabled', () => {
+      const { host, container, region, render, scroll } = setup('item-2');
+      container.style.height = '300px';
+      container.style.overflowY = 'auto';
+      container.style.overflowAnchor = 'none';
+
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+      container.getBoundingClientRect = () => rect(100, 300);
+      item1.getBoundingClientRect = () => rect(-200, 30);
+      item2.getBoundingClientRect = () => rect(180, 30); // 180 - 100 = 80px displacement
+      container.dispatchEvent(new Event('scroll'));
+      render();
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+
+      let rafCallback: FrameRequestCallback | null = null;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        rafCallback = cb;
+        return 99;
+      });
+
+      // Item 1 expands inside fixed height container (e.g. accordion open), pushing item2 down
+      item1.getBoundingClientRect = () => rect(-200, 150);
+      item2.getBoundingClientRect = () => rect(300, 30); // Shifted down
+
+      hostObserver.callback([
+        {
+          target: item1,
+          contentRect: { width: 100, height: 150 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+
+      scroll.scroll.mockClear();
+      rafCallback!(performance.now());
+
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({
+          behavior: 'instant',
+          displacement: 80,
+        }),
+      );
+    });
+
+    it('cancels pending layout correction frame on user scroll gestures and preserves reading position on post-scroll reflow', () => {
+      const { host, container, region, render, scroll } = setup('item-1');
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+      container.getBoundingClientRect = () => rect(100, 500);
+      item1.getBoundingClientRect = () => rect(100);
+      item2.getBoundingClientRect = () => rect(600);
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+
+      // 1. Wheel gesture cancels pending layout correction animation frame
+      hostObserver.callback();
+      container.dispatchEvent(new Event('wheel'));
+      expect(cancelSpy).toHaveBeenCalledWith(expect.any(Number));
+
+      // 2. User scrolls to item-2 and scrolling settles
+      item1.getBoundingClientRect = () => rect(-400);
+      item2.getBoundingClientRect = () => rect(160); // 160 - 100 = 60px displacement
+      container.dispatchEvent(new Event('scroll'));
+      render();
+
+      let rafCallback: FrameRequestCallback | null = null;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        rafCallback = cb;
+        return 55;
+      });
+
+      // 3. Post-scroll layout reflow occurs after user stopped scrolling
+      item1.getBoundingClientRect = () => rect(-400, 200); // Expanded above
+      item2.getBoundingClientRect = () => rect(260); // Pushed down by 100px
+
+      hostObserver.callback([
+        {
+          target: item1,
+          contentRect: { width: 100, height: 200 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+
+      scroll.scroll.mockClear();
+      rafCallback!(performance.now());
+
+      // Should preserve displacement to the newly settled item-2
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({
+          behavior: 'instant',
+          displacement: 60,
+        }),
+      );
+    });
+
+    it('preserves reading position on data change even after manual user scrolling', () => {
+      const { host, container, region, render, scroll } = setup('item-1');
+      host.options.set({ anchorPrefixes: ['item-'], restoreOnDataChange: true });
+      host.source.set([1]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+      container.getBoundingClientRect = () => rect(100, 500);
+      item1.getBoundingClientRect = () => rect(100);
+      item2.getBoundingClientRect = () => rect(600);
+
+      // User scrolls down to item-2 (e.g. wheel event followed by scroll event)
+      container.dispatchEvent(new Event('wheel'));
+      item1.getBoundingClientRect = () => rect(-400);
+      item2.getBoundingClientRect = () => rect(150); // 150 - 100 = 50px displacement
+      container.dispatchEvent(new Event('scroll'));
+      render();
+
+      scroll.scroll.mockClear();
+
+      // New data prepended/loaded into source
+      host.source.set([0, 1, 2]);
+      render();
+
+      // restoreOnDataChange should preserve reading position on item-2 with 50px displacement
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({
+          behavior: 'instant',
+          displacement: 50,
+        }),
+      );
+    });
+
+    it('cancels pending layout corrections on keyboard navigation', () => {
+      const { host, container, region, render } = setup('item-1');
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+
+      hostObserver.callback();
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(cancelSpy).toHaveBeenCalled();
+    });
+
+    it('cancels pending layout corrections on programmatic scrollTo', () => {
+      const { host, region, render } = setup('item-1');
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+
+      hostObserver.callback();
+      host.scroll().scrollTo('item-2');
+      expect(cancelSpy).toHaveBeenCalled();
+    });
+
+    it('cancels pending layout corrections on route fragment updates', () => {
+      const { host, region, render, routeFragment } = setup('item-1');
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+
+      hostObserver.callback();
+      routeFragment.next('item-2');
+      render();
+      expect(cancelSpy).toHaveBeenCalled();
+
+      hostObserver.callback();
+      routeFragment.next(null);
+      render();
+      expect(cancelSpy).toHaveBeenCalled();
+    });
+
+    it('skips layout preservation when not yet initialized', () => {
+      const { host, region, render } = setup(null);
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      // Data source is null (not ready), so directive remains uninitialized
+      render();
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame');
+      hostObserver.callback();
+      expect(rafSpy).not.toHaveBeenCalled();
+    });
+
+    it('defers layout preservation during programmatic smooth scrollTo and executes after scrollend', () => {
+      const { host, container, region, render, scroll } = setup('item-1');
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([1]);
+      render();
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+      container.getBoundingClientRect = () => rect(100, 500);
+      item1.getBoundingClientRect = () => rect(100);
+      item2.getBoundingClientRect = () => rect(800);
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+
+      // Programmatic smooth scroll to item-2
+      expect(host.scroll().scrollTo('item-2', { behavior: 'smooth' })).toBe(true);
+
+      // Intermediate scroll event during smooth scrolling should not overwrite liveAnchor
+      item1.getBoundingClientRect = () => rect(-200);
+      item2.getBoundingClientRect = () => rect(400); // Midway
+      container.dispatchEvent(new Event('scroll'));
+
+      // Layout reflow occurs midway during smooth animation
+      item1.getBoundingClientRect = () => rect(-200, 150);
+      hostObserver.callback([
+        {
+          target: item1,
+          contentRect: { width: 100, height: 150 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+
+      // Preservation must NOT have executed midway
+      expect(scroll.scroll).toHaveBeenLastCalledWith(
+        'item-2',
+        expect.objectContaining({ behavior: 'smooth' }),
+      );
+
+      // Setup RAF spy to capture deferred preservation
+      let rafCallback: FrameRequestCallback | null = null;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        rafCallback = cb;
+        return 77;
+      });
+
+      // Smooth scroll finishes and dispatches scrollend
+      item1.getBoundingClientRect = () => rect(-700);
+      item2.getBoundingClientRect = () => rect(100); // Destination reached
+      scroll.scroll.mockClear();
+      container.dispatchEvent(new Event('scrollend'));
+
+      // Deferred layout preservation should now be scheduled via RAF
+      expect(rafCallback).not.toBeNull();
+      rafCallback!(performance.now());
+
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({ behavior: 'instant', displacement: 0 }),
+      );
+    });
+
+    it('defers layout preservation during smooth initial restoration and handles safety timeout', () => {
+      vi.useFakeTimers();
+      const { host, container, region, render, scroll } = setup('item-2');
+      host.options.set({
+        anchorPrefixes: ['item-'],
+        preserveOnLayoutChange: true,
+        behavior: { restoration: 'smooth', interaction: 'instant' },
+      });
+
+      const item1 = region.querySelector<HTMLElement>('#item-1')!;
+      const item2 = region.querySelector<HTMLElement>('#item-2')!;
+      container.getBoundingClientRect = () => rect(100, 500);
+      item1.getBoundingClientRect = () => rect(100);
+      item2.getBoundingClientRect = () => rect(600);
+
+      // Initial restoration starts smooth scroll
+      host.source.set([1]);
+      render();
+
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({ behavior: 'smooth' }),
+      );
+
+      const hostObserver = Observer.instances.find((obs) =>
+        obs.observe.mock.calls.some(([el]) => el === region),
+      )!;
+
+      // Layout reflow notification arrives during smooth restoration
+      hostObserver.callback([
+        {
+          target: item1,
+          contentRect: { width: 100, height: 120 },
+        } as unknown as ResizeObserverEntry,
+      ]);
+
+      let rafCallback: FrameRequestCallback | null = null;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        rafCallback = cb;
+        return 88;
+      });
+
+      // Safety timeout expires when browser does not emit scrollend
+      item1.getBoundingClientRect = () => rect(-500);
+      item2.getBoundingClientRect = () => rect(100);
+      scroll.scroll.mockClear();
+      vi.advanceTimersByTime(3000);
+
+      expect(rafCallback).not.toBeNull();
+      rafCallback!(performance.now());
+      expect(scroll.scroll).toHaveBeenCalledWith(
+        'item-2',
+        expect.objectContaining({ behavior: 'instant' }),
+      );
+    });
+
+    it('handles smooth navigation completion when no anchors are found or target defaults to document', () => {
+      const { host, region, render } = setup(null);
+      host.options.set({ anchorPrefixes: ['item-'] });
+      host.source.set([]);
+      render();
+
+      (host.scroll() as unknown as { target?: unknown }).target = undefined;
+      expect(host.scroll().scrollTo('item-1', { behavior: 'smooth' })).toBe(true);
+      document.dispatchEvent(new Event('scrollend'));
+
+      // Empty region without matching anchors
+      region.innerHTML = '';
+      (
+        host.scroll() as unknown as {
+          beginSmoothNavigation: () => void;
+          endSmoothNavigation: () => void;
+        }
+      ).beginSmoothNavigation();
+      (host.scroll() as unknown as { endSmoothNavigation: () => void }).endSmoothNavigation();
+    });
+
+    it('handles SSR when ResizeObserver is undefined', () => {
+      vi.stubGlobal('ResizeObserver', undefined);
+      const { fixture, host, render } = setup(null);
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([]);
+      expect(() => render()).not.toThrow();
+      expect(() => fixture.destroy()).not.toThrow();
+    });
+
+    it('handles SSR when window is undefined', () => {
+      const { fixture, host, render } = setup(null);
+      const doc = TestBed.inject(DOCUMENT);
+      const originalView = doc.defaultView;
+      Object.defineProperty(doc, 'defaultView', { value: null, configurable: true });
+      host.options.set({ anchorPrefixes: ['item-'], preserveOnLayoutChange: true });
+      host.source.set([]);
+      expect(() => render()).not.toThrow();
+      expect(() => fixture.destroy()).not.toThrow();
+      Object.defineProperty(doc, 'defaultView', { value: originalView, configurable: true });
     });
   });
 });

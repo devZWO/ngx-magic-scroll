@@ -121,6 +121,11 @@ export class ScrollService {
         : Infinity;
     const targetScrollTop = Math.min(Math.max(scrollable.scrollTop + delta, 0), maxScrollTop);
 
+    // Skip redundant DOM scrollTo dispatch when already aligned (sub-pixel delta < 1px).
+    if (Math.abs(targetScrollTop - scrollable.scrollTop) < 1) {
+      return true;
+    }
+
     // One operation keeps offsets accurate during smooth scrolling and only moves the selected container.
     scrollable.scrollTo({
       top: targetScrollTop,
