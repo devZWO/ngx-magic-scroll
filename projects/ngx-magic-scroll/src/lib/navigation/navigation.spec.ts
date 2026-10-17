@@ -117,6 +117,29 @@ describe('ScrollService', () => {
       behavior: 'instant',
     });
   });
+
+  it('skips redundant scrollTo when container is already aligned within 1px delta', () => {
+    const service = TestBed.inject(ScrollService);
+    const container = element('container', 100, 600);
+    Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true });
+    Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true });
+    Object.defineProperty(container, 'scrollTop', {
+      value: 200,
+      writable: true,
+      configurable: true,
+    });
+    container.scrollTo = vi.fn();
+
+    // Target is already at containerTop (100) + topOffset (20) = 120 (delta = 0)
+    element('aligned-target', 120, 150);
+    expect(
+      service.scroll('aligned-target', {
+        scrollable: container,
+        topOffset: 20,
+      }),
+    ).toBe(true);
+    expect(container.scrollTo).not.toHaveBeenCalled();
+  });
   it.each([
     ['none', 120, 180, true],
     ['top', 120, 180, false],

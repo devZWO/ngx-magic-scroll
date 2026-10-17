@@ -232,6 +232,16 @@ export class MagicScrollDirective {
   private focusTimeoutTimer?: ReturnType<typeof setTimeout>;
   /** Element focused when the pending focus transfer was initiated. */
   private focusInitiator?: Element | null;
+  /** Flag indicating whether programmatic smooth scrolling animation is actively running. */
+  private isSmoothNavigating = false;
+  /** Flag indicating a deferred layout preservation request while smooth navigation was active. */
+  private pendingLayoutPreservation = false;
+  /** Active scrollend event handler for programmatic smooth navigation settlement. */
+  private smoothNavEndHandler?: () => void;
+  /** Event target on which smoothNavEndHandler was registered. */
+  private smoothNavTarget?: EventTarget;
+  /** Safety timeout timer preventing smooth navigation lock if scrollend does not fire. */
+  private smoothNavTimeoutTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -246,6 +256,7 @@ export class MagicScrollDirective {
       this.cancelDestinationRetry();
       this.cancelScheduledFocus();
       this.cancelLayoutPreservation();
+      this.cancelSmoothNavigation();
       for (const cleanup of this.temporaryTabindexCleanups) {
         cleanup();
       }
@@ -273,21 +284,59 @@ export class MagicScrollDirective {
       }
     });
 
-    // Phase 1b: Region layout reflow observation & animation frame coalesced preservation.
-    // Observes host dimensions when preserveOnLayoutChange is enabled, coalescing rapid
-    // asynchronous layout changes (e.g. image loads, form expansions) into a single preservation per frame.
+    // Phase 1b: Region and anchor layout reflow observation & animation frame coalesced preservation.
+    // Observes host dimensions and region-owned anchors when preserveOnLayoutChange is enabled,
+    // coalescing rapid asynchronous layout changes (e.g. image loads, accordion expansions)
+    // into a single preservation per frame.
     afterRenderEffect((onCleanup) => {
+      this.scrollSource();
       if (
         this.options().preserveOnLayoutChange &&
         typeof ResizeObserver !== 'undefined' &&
         typeof window !== 'undefined'
       ) {
-        const observer = new ResizeObserver(() => {
-          this.scheduleLayoutPreservation();
+        const observedDimensions = new Map<Element, { width: number; height: number }>();
+        const measureAndStore = (el: Element) => {
+          const rect = el.getBoundingClientRect();
+          const dims = { width: rect.width, height: rect.height };
+          observedDimensions.set(el, dims);
+          return dims;
+        };
+
+        const observer = new ResizeObserver((entries?: ResizeObserverEntry[]) => {
+          let hasRealChange = false;
+          if (!entries || !Array.isArray(entries) || entries.length === 0) {
+            hasRealChange = true;
+          } else {
+            for (const entry of entries) {
+              const target = entry.target;
+              const prev = observedDimensions.get(target);
+              const rect = (target as HTMLElement).getBoundingClientRect?.();
+              const width = entry.contentRect?.width ?? rect?.width ?? 0;
+              const height = entry.contentRect?.height ?? rect?.height ?? 0;
+              if (!prev) {
+                observedDimensions.set(target, { width, height });
+              } else if (prev.width !== width || prev.height !== height) {
+                observedDimensions.set(target, { width, height });
+                hasRealChange = true;
+              }
+            }
+          }
+          if (hasRealChange) {
+            this.scheduleLayoutPreservation();
+          }
         });
+
+        measureAndStore(this.host);
         observer.observe(this.host);
+        for (const anchor of this.anchors()) {
+          measureAndStore(anchor);
+          observer.observe(anchor);
+        }
+
         onCleanup(() => {
           observer.disconnect();
+          observedDimensions.clear();
           this.cancelLayoutPreservation();
         });
       }
@@ -319,14 +368,12 @@ export class MagicScrollDirective {
             this.cancelDestinationRetry();
           }
         } else {
-          if (!this.userInterrupted) {
+          if (this.pendingDestination && !this.userInterrupted) {
             if (!this.tryExecutePendingDestination(this.options().behavior.restoration)) {
-              if (this.pendingDestination) {
-                this.scheduleDestinationRetry();
-              } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
-                this.preserve();
-              }
+              this.scheduleDestinationRetry();
             }
+          } else if (source !== NO_SCROLL_SOURCE && this.options().restoreOnDataChange) {
+            this.preserve();
           }
         }
       });
@@ -351,6 +398,8 @@ export class MagicScrollDirective {
           if (!this.isInternalNavigation()) {
             this.cancelScheduledFocus();
             this.cancelLayoutPreservation();
+            this.cancelSmoothNavigation();
+            this.pendingLayoutPreservation = false;
             this.userInterrupted = false;
             this.savedDisplacement = 0;
             this.pendingDestination = frag;
@@ -367,6 +416,8 @@ export class MagicScrollDirective {
         } else {
           this.cancelScheduledFocus();
           this.cancelLayoutPreservation();
+          this.cancelSmoothNavigation();
+          this.pendingLayoutPreservation = false;
           this.savedDisplacement = 0;
           this.pendingDestination = null;
           this.cancelDestinationRetry();
@@ -428,6 +479,13 @@ export class MagicScrollDirective {
     const clean = anchor.replace(/^#/, '');
     const targetEl = this.anchors().find((el) => el.id === clean);
     const willScroll = targetEl ? this.willScroll(targetEl, options) : false;
+    const behavior = options.behavior ?? this.options().behavior.interaction;
+    const isSmooth = willScroll && this.hasSmoothScrollBehavior(behavior);
+    if (isSmooth) {
+      this.beginSmoothNavigation();
+    } else {
+      this.cancelSmoothNavigation();
+    }
     const executed = this.execute(anchor, {
       behavior: this.options().behavior.interaction,
       ignoreWhenInView: this.options().ignoreWhenInView,
@@ -443,7 +501,6 @@ export class MagicScrollDirective {
       this.fragment.set(clean);
     }
     if (options.focus && targetEl) {
-      const behavior = options.behavior ?? this.options().behavior.interaction;
       if (executed && willScroll && this.hasSmoothScrollBehavior(behavior)) {
         this.scheduleFocus(targetEl);
       } else {
@@ -466,6 +523,13 @@ export class MagicScrollDirective {
    */
   private tryExecutePendingDestination(behavior: ScrollBehavior): boolean {
     if (!this.pendingDestination) return false;
+    const clean = this.pendingDestination.replace(/^#/, '');
+    const targetEl = this.anchors().find((el) => el.id === clean);
+    const willScroll = targetEl ? this.willScroll(targetEl, { behavior }) : false;
+    const isSmooth = willScroll && this.hasSmoothScrollBehavior(behavior);
+    if (isSmooth) {
+      this.beginSmoothNavigation();
+    }
     if (this.execute(this.pendingDestination, { behavior, displacement: 0 })) {
       this.savedDisplacement = 0;
       this.pendingDestination = null;
@@ -649,6 +713,10 @@ export class MagicScrollDirective {
    */
   private preserve(): void {
     if (this.initialized) {
+      if (this.isSmoothNavigating) {
+        this.pendingLayoutPreservation = true;
+        return;
+      }
       const anchor = this.liveAnchor();
       if (!anchor) return;
       this.execute(anchor, {
@@ -663,7 +731,11 @@ export class MagicScrollDirective {
    * Batches multiple synchronous or rapid descendant reflows into a single correction per frame.
    */
   private scheduleLayoutPreservation(): void {
-    if (!this.initialized || this.userInterrupted || typeof window === 'undefined') {
+    if (!this.initialized || typeof window === 'undefined') {
+      return;
+    }
+    if (this.isSmoothNavigating) {
+      this.pendingLayoutPreservation = true;
       return;
     }
     if (this.layoutCorrectionFrameId !== undefined) {
@@ -815,6 +887,7 @@ export class MagicScrollDirective {
   private detachListeners(): void {
     if (!this.target) return;
     this.cancelScheduledFocus();
+    this.cancelSmoothNavigation();
     this.target.removeEventListener('scroll', this.onScroll);
     this.target.removeEventListener('wheel', this.onUserIntent);
     this.target.removeEventListener('touchstart', this.onUserIntent);
@@ -833,6 +906,8 @@ export class MagicScrollDirective {
     this.cancelDestinationRetry();
     this.cancelScheduledFocus();
     this.cancelLayoutPreservation();
+    this.cancelSmoothNavigation();
+    this.pendingLayoutPreservation = false;
   };
 
   /**
@@ -857,6 +932,8 @@ export class MagicScrollDirective {
       this.cancelDestinationRetry();
       this.cancelScheduledFocus();
       this.cancelLayoutPreservation();
+      this.cancelSmoothNavigation();
+      this.pendingLayoutPreservation = false;
     }
   };
 
@@ -900,10 +977,12 @@ export class MagicScrollDirective {
    */
   private readonly onScroll = () => {
     if (!this.initialized) return;
-    const anchor = this.calculateNearestAnchor();
-    if (anchor) {
-      this.liveAnchor.set(anchor);
-      this.updateSavedDisplacement(anchor);
+    if (!this.isSmoothNavigating) {
+      const anchor = this.calculateNearestAnchor();
+      if (anchor) {
+        this.liveAnchor.set(anchor);
+        this.updateSavedDisplacement(anchor);
+      }
     }
     clearTimeout(this.timer);
     this.timer = setTimeout(
@@ -919,4 +998,54 @@ export class MagicScrollDirective {
     this.refreshTarget();
     if (this.options().preserveOnResize) this.preserve();
   };
+
+  /**
+   * Initiates smooth programmatic navigation protection, deferring layout realignments
+   * and intermediate anchor snapping until scrolling completes (`scrollend`) or times out.
+   */
+  private beginSmoothNavigation(): void {
+    this.cancelSmoothNavigation();
+    this.isSmoothNavigating = true;
+    this.refreshTarget();
+    const target = this.target!;
+    this.smoothNavTarget = target;
+    this.smoothNavEndHandler = () => {
+      this.endSmoothNavigation();
+    };
+    target.addEventListener('scrollend', this.smoothNavEndHandler, { once: true });
+    this.smoothNavTimeoutTimer = setTimeout(() => {
+      this.endSmoothNavigation();
+    }, 3000);
+  }
+
+  /**
+   * Concludes smooth programmatic navigation, updating the reading position
+   * at the settled destination and processing any deferred layout preservation requests.
+   */
+  private endSmoothNavigation(): void {
+    this.cancelSmoothNavigation();
+    const anchor = this.calculateNearestAnchor();
+    if (anchor) {
+      this.liveAnchor.set(anchor);
+      this.updateSavedDisplacement(anchor);
+    }
+    if (this.pendingLayoutPreservation) {
+      this.pendingLayoutPreservation = false;
+      this.scheduleLayoutPreservation();
+    }
+  }
+
+  /**
+   * Cancels active smooth navigation tracking and clears timeout timers and scrollend listeners.
+   */
+  private cancelSmoothNavigation(): void {
+    if (this.smoothNavEndHandler && this.smoothNavTarget) {
+      this.smoothNavTarget.removeEventListener('scrollend', this.smoothNavEndHandler);
+      this.smoothNavEndHandler = undefined;
+      this.smoothNavTarget = undefined;
+    }
+    clearTimeout(this.smoothNavTimeoutTimer);
+    this.smoothNavTimeoutTimer = undefined;
+    this.isSmoothNavigating = false;
+  }
 }
