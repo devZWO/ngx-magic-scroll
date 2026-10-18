@@ -31,6 +31,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Overview', slug: 'index' },
         { label: 'Getting started', slug: 'getting-started' },
+        { label: 'AI Agent Guide', slug: 'ai/usage' },
         { label: 'Live demo', link: '/demo/' },
         {
           label: 'Concepts',
@@ -60,6 +61,10 @@ export default defineConfig({
               ],
             },
           ],
+        },
+        {
+          label: 'Migrations',
+          items: [{ autogenerate: { directory: 'migrations' } }],
         },
         {
           label: 'API',

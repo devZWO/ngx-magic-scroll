@@ -121,7 +121,7 @@ Four routed examples demonstrate document synchronization, asynchronous navigati
 
 `pnpm test:ci` enforces 100% statements, branches, functions and lines per library implementation file. The existing 25 E2E scenarios remain unchanged after the migration to the facade and pass in Chromium, Firefox and WebKit (75 runs).
 
-[Documentation and API](https://devzwo.github.io/ngx-magic-scroll/) · [Source and issues](https://github.com/devZWO/ngx-magic-scroll)
+[Documentation and API](https://devzwo.github.io/ngx-magic-scroll/) · [AI Agent Guide](ai/usage.md) · [llms.txt Index](https://devzwo.github.io/ngx-magic-scroll/llms.txt) · [Changelog](CHANGELOG.md) · [Source and issues](https://github.com/devZWO/ngx-magic-scroll)
 
 MIT, copyright 2026 devZWO GmbH.
 

@@ -63,6 +63,12 @@ Only `dist/ngx-magic-scroll` is published to npm; the workspace root is private.
 
 ## Documentation
 
+- [Online Documentation](https://devzwo.github.io/ngx-magic-scroll/)
+- [AI Agent Guide](docs/src/content/docs/ai/usage.md)
+- [Machine-readable Index (`llms.txt`)](https://devzwo.github.io/ngx-magic-scroll/llms.txt)
+- [Changelog](CHANGELOG.md)
+- [Migration Guides](docs/src/content/docs/migrations/v1.0-to-v1.1.md)
+
 `pnpm docs:build` generates the documentation and API reference in `docs/dist`. GitHub Pages deploys the docs at `/ngx-magic-scroll/` and the demo at `/ngx-magic-scroll/demo/`.
 
 ## License

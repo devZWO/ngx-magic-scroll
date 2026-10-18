@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -53,22 +53,33 @@ import { fileURLToPath } from 'node:url';
  * recipe examples are checked against the current library build.
  */
 const root = fileURLToPath(new URL('../', import.meta.url));
-const recipes = resolve(root, 'docs/src/content/docs/recipes');
+const docsRoot = resolve(root, 'docs/src/content/docs');
+const checkDirs = [
+  { path: resolve(docsRoot, 'recipes'), required: true },
+  { path: resolve(docsRoot, 'migrations'), required: true },
+  { path: resolve(docsRoot, 'ai'), required: true },
+];
 const output = resolve(root, 'tmp/recipe-check');
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 let count = 0;
-for (const name of readdirSync(recipes).filter((name) => name.endsWith('.md'))) {
-  const markdown = readFileSync(resolve(recipes, name), 'utf8');
-  const blocks = [
-    ...markdown.matchAll(/<!-- recipe-check: ([\w.-]+\.ts) -->\s*```ts\n([\s\S]*?)\n```/g),
-  ];
-  assert.ok(blocks.length, `${name}: mark at least one complete TypeScript example`);
-  for (const [, filename, code] of blocks) {
-    const target = resolve(output, filename);
-    assert.ok(!readdirSync(output).includes(filename), `Duplicate recipe filename: ${filename}`);
-    writeFileSync(target, `// Extracted from ${name}; edit the Markdown source.\n${code}\n`);
-    count++;
+
+for (const { path: dirPath, required } of checkDirs) {
+  if (!existsSync(dirPath)) continue;
+  for (const name of readdirSync(dirPath).filter((name) => name.endsWith('.md'))) {
+    const markdown = readFileSync(resolve(dirPath, name), 'utf8');
+    const blocks = [
+      ...markdown.matchAll(/<!-- recipe-check: ([\w.-]+\.ts) -->\s*```ts\n([\s\S]*?)\n```/g),
+    ];
+    if (required) {
+      assert.ok(blocks.length > 0, `${name}: mark at least one complete TypeScript example`);
+    }
+    for (const [, filename, code] of blocks) {
+      const target = resolve(output, filename);
+      assert.ok(!readdirSync(output).includes(filename), `Duplicate recipe filename: ${filename}`);
+      writeFileSync(target, `// Extracted from ${name}; edit the Markdown source.\n${code}\n`);
+      count++;
+    }
   }
 }
 writeFileSync(

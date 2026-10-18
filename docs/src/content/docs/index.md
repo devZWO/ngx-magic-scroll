@@ -34,9 +34,12 @@ With Angular Router provided, this is enough for static content: the directive d
 ## Documentation
 
 - [Getting started](./getting-started/): installation and your first scroll region.
+- [AI Agent Guide](./ai/usage/): token-efficient integration rules, recipe decision guide and upgrade instructions for AI coding assistants.
 - [Concepts](./concepts/): understand scroll regions, URL state, data readiness and position preservation.
 - [Recipes](./recipes/scroll-to-anchor/): explore navigation, data sources and layouts through focused code examples.
+- [Migration Guides](./migrations/v10-to-v11/): version upgrade guides and before/after code examples.
 - [API reference](./api/readme/): directives, options and supported data sources.
+- [Machine-readable index (`llms.txt`)](/ngx-magic-scroll/llms.txt): structured index for AI coding assistants and LLMs.
 - [Live demo](./demo/): explore document scrolling, asynchronous restoration, Material Drawer and master–detail layouts.
 
 The library is currently **pre-release**, and its public API is still under review.
