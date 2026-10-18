@@ -1,5 +1,27 @@
 # Changelog
 
+## Release v1.1.1 (2026-10-18)
+
+### Features
+
+- Bundle offline Markdown documentation (`ai/usage.md`, `getting-started.md`, concepts, recipes, migrations, changelog) directly in the npm distribution package.
+- Provide machine-readable AI Agent Guide (`ai/usage.md`) and dynamic `llms.txt` ecosystem index for AI coding assistants.
+- Add version-specific migration guides covering `v0.0.1-rc.1 -> v0.0.1-rc.2`, `v0.0.1-rc.2 -> v1.0.0`, and `v1.0.x -> v1.1.0` with verified Angular 22 before/after code transformations.
+- Export raw Markdown documentation endpoints (`.md`) across all documentation routes.
+- Add automated validation scripts for package archive structure, Markdown link resolution, version consistency, and Angular `ngc` recipe/migration snippet compilation.
+
+### Bug Fixes & Behavioral Changes
+
+- Fix duplicate H1 headings rendered on documentation pages in Starlight.
+
+### Deprecations
+
+- None.
+
+### Breaking Changes
+
+- None.
+
 ## Release v1.1.0 (2026-10-18)
 
 ### Features
