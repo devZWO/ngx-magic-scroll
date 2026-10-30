@@ -71,6 +71,8 @@ Only `dist/ngx-magic-scroll` is published to npm; the workspace root is private.
 
 `pnpm docs:build` generates the documentation and API reference in `docs/dist`. GitHub Pages deploys the docs at `/ngx-magic-scroll/` and the demo at `/ngx-magic-scroll/demo/`.
 
+The demo uses hash routing so direct links and refreshes work on static hosting, for example `/ngx-magic-scroll/demo/#/navigation?keep=yes#eintrag-4`. Angular Router manages the scroll anchor after the route's hash prefix.
+
 ## License
 
 MIT, copyright 2026 devZWO GmbH. See [LICENSE](LICENSE).

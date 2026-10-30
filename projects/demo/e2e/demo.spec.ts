@@ -5,7 +5,7 @@ test('document synchronizes scroll, fragment and active anchor without adding hi
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/document?keep=yes');
+  await page.goto('/#/document?keep=yes');
   const history = await page.evaluate(() => window.history.length);
   await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
   await expect(page).toHaveURL(/keep=yes#kapitel-3$/);
@@ -19,7 +19,7 @@ test('document synchronizes scroll, fragment and active anchor without adding hi
 test('navigation restores after async loading, browser back, reload and resize', async ({
   page,
 }) => {
-  await page.goto('/navigation?keep=yes#eintrag-4');
+  await page.goto('/#/navigation?keep=yes#eintrag-4');
   await aligned(page, '#eintrag-4', '.viewport');
   await page.getByRole('link', { name: 'Details for 4', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Details for 4' })).toBeVisible();
@@ -30,7 +30,10 @@ test('navigation restores after async loading, browser back, reload and resize',
   await expect(page.getByRole('heading', { name: 'Details for 4' })).toBeVisible();
   await page.goBack();
   await aligned(page, '#eintrag-4', '.viewport');
-  await page.reload();
+  const reloadResponse = await page.reload();
+  expect(reloadResponse?.status()).toBe(200);
+  expect(new URL(reloadResponse!.url()).pathname).toBe('/');
+  await expect(page).toHaveURL(/\/#\/navigation\?keep=yes#eintrag-4$/);
   await aligned(page, '#eintrag-4', '.viewport');
   // A real layout shift must occur before resize restoration can prove anything.
   await page.locator('.viewport').evaluate((el) => (el.style.overflowAnchor = 'none'));
@@ -50,7 +53,7 @@ test('navigation restores after async loading, browser back, reload and resize',
 test('Material drawer supports restoration, scroll synchronization, reload and pagination', async ({
   page,
 }) => {
-  await page.goto('/drawer#antrag-card-4');
+  await page.goto('/#/drawer#antrag-card-4');
   await aligned(page, '#antrag-card-4', 'mat-drawer-content');
   await page.getByRole('button', { name: 'Application 6', exact: true }).click();
   await expect(page).toHaveURL(/#antrag-card-6$/);
@@ -86,7 +89,7 @@ test('master-detail scrolls the document independently of master and accounts fo
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/master-detail?keep=yes#projekt-8');
+  await page.goto('/#/master-detail?keep=yes#projekt-8');
   const master = page.locator('.portfolio-master');
   async function belowHeader(id: number) {
     await expect
@@ -149,7 +152,7 @@ test('master-detail scrolls the document independently of master and accounts fo
 test('document options apply smooth scrolling, offsets, visibility rules and anchor filtering', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll behavior').selectOption('smooth');
   await page.getByLabel('Top offset').selectOption('20');
@@ -183,7 +186,7 @@ test('document options apply smooth scrolling, offsets, visibility rules and anc
 test('navigation options survive back navigation and restore asynchronously with smooth behavior and offset', async ({
   page,
 }) => {
-  await page.goto('/navigation?scroll=smooth&offset=64#eintrag-4');
+  await page.goto('/#/navigation?scroll=smooth&offset=64#eintrag-4');
   await atOffset(page, '#eintrag-4', '.viewport', 64);
   await page.getByText('Options', { exact: true }).click();
   await expect(page.getByLabel('Scroll behavior')).toHaveValue('smooth');
@@ -197,7 +200,7 @@ test('navigation options survive back navigation and restore asynchronously with
 test('drawer options preserve the visible anchor when data is inserted above it', async ({
   page,
 }) => {
-  await page.goto('/drawer#antrag-card-4');
+  await page.goto('/#/drawer#antrag-card-4');
   await aligned(page, '#antrag-card-4', 'mat-drawer-content');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll behavior').selectOption('smooth');
@@ -228,7 +231,7 @@ test('drawer options preserve the visible anchor when data is inserted above it'
 test('drawer preserves reading displacement within a tall card under native overflow anchoring without double compensation', async ({
   page,
 }) => {
-  await page.goto('/drawer#antrag-card-4');
+  await page.goto('/#/drawer#antrag-card-4');
   await aligned(page, '#antrag-card-4', 'mat-drawer-content');
   await page.locator('mat-drawer-content').evaluate((el) => (el.style.overflowAnchor = 'auto'));
 

@@ -1,6 +1,10 @@
 import { expect } from '@playwright/test';
 import { test, aligned, atOffset, placeAnchor } from './fixtures';
 
+function demoRouteUrl(url: string): URL {
+  return new URL(new URL(url).hash.slice(1), url);
+}
+
 for (const { behavior, cssSmooth } of [
   { behavior: 'smooth', cssSmooth: false },
   { behavior: 'instant', cssSmooth: true },
@@ -10,7 +14,7 @@ for (const { behavior, cssSmooth } of [
   test(`document ${behavior} scrolling (CSS smooth: ${cssSmooth}) has the expected animation and keeps the page stationary`, async ({
     page,
   }) => {
-    await page.goto('/document');
+    await page.goto('/#/document');
     await page.getByText('Options', { exact: true }).click();
     await page.getByLabel('Scroll behavior').selectOption(behavior);
     await page.getByLabel('Top offset').selectOption('20');
@@ -51,7 +55,7 @@ for (const { behavior, cssSmooth } of [
   test(`keyboard focus transfer follows ${behavior} scrolling and does not scroll the outer page`, async ({
     page,
   }) => {
-    await page.goto('/document');
+    await page.goto('/#/document');
     if (behavior !== 'instant') {
       await page.getByText('Options', { exact: true }).click();
       await page.getByLabel('Scroll behavior').selectOption(behavior);
@@ -78,7 +82,7 @@ for (const { behavior, cssSmooth } of [
 }
 
 test('keyboard and pointer handoff cancel a pending smooth focus transfer', async ({ page }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll behavior').selectOption('smooth');
   await page.getByText('Options', { exact: true }).click();
@@ -126,7 +130,7 @@ test('keyboard and pointer handoff cancel a pending smooth focus transfer', asyn
 test('smooth focus transfer ignores a target removed before scroll completion', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll behavior').selectOption('smooth');
   await page.getByText('Options', { exact: true }).click();
@@ -152,7 +156,7 @@ test('smooth focus transfer ignores a target removed before scroll completion', 
 test('visibility modes distinguish full visibility, each visible edge, hidden and oversized targets', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   const target = page.locator('#kapitel-3');
   const scenarios = [
@@ -194,7 +198,7 @@ test('visibility modes distinguish full visibility, each visible edge, hidden an
 test('scroll spy debounces a burst, uses the final anchor and reacts to a changed delay', async ({
   page,
 }) => {
-  await page.goto('/document?keep=yes');
+  await page.goto('/#/document?keep=yes');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('1000');
   await page.clock.install();
@@ -218,7 +222,7 @@ test('scroll spy debounces a burst, uses the final anchor and reacts to a change
 test('prefix filtering excludes a closer intermediate anchor and can be disabled at runtime', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
   await placeAnchor(page, '#zwischen-kapitel-3', '.viewport', 0);
@@ -230,7 +234,7 @@ test('prefix filtering excludes a closer intermediate anchor and can be disabled
 test('anchor selection strategy options switch between prefixes and explicit-only mode while excluding generated Material IDs', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
 
@@ -277,7 +281,7 @@ test('anchor selection strategy options switch between prefixes and explicit-onl
 test('wheel and keyboard scroll the document container and synchronize its anchor', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
   await page.locator('.viewport').hover();
@@ -302,7 +306,7 @@ test('wheel and keyboard scroll the document container and synchronize its ancho
 test('drawer scroll spy responds to wheel input independently of navigation buttons', async ({
   page,
 }) => {
-  await page.goto('/drawer#antrag-card-4');
+  await page.goto('/#/drawer#antrag-card-4');
   await aligned(page, '#antrag-card-4', 'mat-drawer-content');
   await page.locator('mat-drawer-content').hover();
   const outerPosition = await page.evaluate(() => window.scrollY);
@@ -319,16 +323,16 @@ test('drawer scroll spy responds to wheel input independently of navigation butt
 test('navigation options changed through the UI preserve query parameters and history', async ({
   page,
 }) => {
-  await page.goto('/navigation?keep=yes#eintrag-4');
+  await page.goto('/#/navigation?keep=yes#eintrag-4');
   await aligned(page, '#eintrag-4', '.viewport');
   const history = await page.evaluate(() => window.history.length);
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll behavior').selectOption('smooth');
   await page.getByLabel('Top offset').selectOption('64');
-  await expect.poll(() => new URL(page.url()).searchParams.get('offset')).toBe('64');
-  expect(new URL(page.url()).searchParams.get('scroll')).toBe('smooth');
-  expect(new URL(page.url()).searchParams.get('keep')).toBe('yes');
-  expect(new URL(page.url()).hash).toBe('#eintrag-4');
+  await expect.poll(() => demoRouteUrl(page.url()).searchParams.get('offset')).toBe('64');
+  expect(demoRouteUrl(page.url()).searchParams.get('scroll')).toBe('smooth');
+  expect(demoRouteUrl(page.url()).searchParams.get('keep')).toBe('yes');
+  expect(demoRouteUrl(page.url()).hash).toBe('#eintrag-4');
   expect(await page.evaluate(() => window.history.length)).toBe(history);
   await page.getByRole('link', { name: 'Details for 4', exact: true }).click();
   await page.getByRole('link', { name: 'Back to list', exact: true }).click();
@@ -340,7 +344,7 @@ test('navigation options changed through the UI preserve query parameters and hi
 test('initial restoration waits for loading and does not repeat after a later reload', async ({
   page,
 }) => {
-  await page.goto('/navigation?delay=1200#eintrag-4');
+  await page.goto('/#/navigation?delay=1200#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('Loading…');
   await expect(page.locator('#eintrag-4')).not.toBeAttached();
   expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(0);
@@ -357,7 +361,7 @@ test('initial restoration waits for loading and does not repeat after a later re
 });
 
 test('leaving a pending load prevents stale scrolling and URL updates', async ({ page }) => {
-  await page.goto('/navigation?delay=1200#eintrag-4');
+  await page.goto('/#/navigation?delay=1200#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('Loading…');
   // Retain the old DOM node to dispatch events after its directive has been destroyed.
   const oldViewport = await page.locator('.viewport').elementHandle();
@@ -381,20 +385,20 @@ for (const fragment of ['', '#nicht-vorhanden']) {
   test(`navigation handles ${fragment ? 'unknown' : 'missing'} fragments without a scroll or URL rewrite`, async ({
     page,
   }) => {
-    await page.goto(`/navigation?keep=yes${fragment}`);
+    await page.goto(`/#/navigation?keep=yes${fragment}`);
     await expect(page.locator('#eintrag-8')).toBeAttached();
     await page.clock.install();
     await page.clock.runFor(1000);
     expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(0);
-    expect(new URL(page.url()).hash).toBe(fragment);
-    expect(new URL(page.url()).searchParams.get('keep')).toBe('yes');
+    expect(demoRouteUrl(page.url()).hash).toBe(fragment);
+    expect(demoRouteUrl(page.url()).searchParams.get('keep')).toBe('yes');
   });
 }
 
 test('an empty loaded list leaves the scroll position and requested fragment untouched', async ({
   page,
 }) => {
-  await page.goto('/navigation?result=empty#eintrag-4');
+  await page.goto('/#/navigation?result=empty#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('No entries.');
   await expect(page.locator('.viewport section')).toHaveCount(0);
   await page.clock.install();
@@ -406,7 +410,7 @@ test('an empty loaded list leaves the scroll position and requested fragment unt
 test('a failed initial load can be retried and then restores the requested anchor', async ({
   page,
 }) => {
-  await page.goto('/navigation?result=error#eintrag-4');
+  await page.goto('/#/navigation?result=error#eintrag-4');
   await expect(page.getByRole('alert')).toContainText('Please try again');
   expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(0);
   await page.getByText('Loading behavior', { exact: true }).click();
@@ -420,7 +424,7 @@ test('a failed initial load can be retried and then restores the requested ancho
 test('first and last anchors respect the scroll limits without fragment oscillation', async ({
   page,
 }) => {
-  await page.goto('/document?keep=yes');
+  await page.goto('/#/document?keep=yes');
   await page.getByRole('button', { name: 'kapitel-1', exact: true }).click();
   // Container borders account for one pixel; use the same strict tolerance as alignment checks.
   expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBeLessThan(2);
@@ -443,7 +447,7 @@ test('first and last anchors respect the scroll limits without fragment oscillat
 test('wheel scrolling the master-detail page updates the active project without moving the master', async ({
   page,
 }) => {
-  await page.goto('/master-detail#projekt-8');
+  await page.goto('/#/master-detail#projekt-8');
   await expect
     .poll(() =>
       page
@@ -483,7 +487,7 @@ test('wheel scrolling the master-detail page updates the active project without 
 test('reading within a section taller than the viewport keeps that section active when its heading leaves view and only changes when the next section crosses the activation boundary', async ({
   page,
 }) => {
-  await page.goto('/master-detail#projekt-2');
+  await page.goto('/#/master-detail#projekt-2');
 
   await expect
     .poll(() =>
@@ -576,7 +580,7 @@ test('reading within a section taller than the viewport keeps that section activ
 test('container scrolling activates fully visible sections and retains active reading state when tall', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
 
@@ -599,7 +603,7 @@ test('container scrolling activates fully visible sections and retains active re
 });
 
 test('live activation threshold adjustment changes section trigger point', async ({ page }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
   await page.getByLabel('Scroll-spy delay').selectOption('0');
 
@@ -625,7 +629,7 @@ test('live activation threshold adjustment changes section trigger point', async
 test('toggling active zone overlay renders exclusion zones and dynamic trigger badge', async ({
   page,
 }) => {
-  await page.goto('/document');
+  await page.goto('/#/document');
   await page.getByText('Options', { exact: true }).click();
 
   // Overlay is initially hidden
@@ -663,7 +667,7 @@ test('toggling active zone overlay renders exclusion zones and dynamic trigger b
 test('master-detail supports live active zone overlay and dynamic header offset updates', async ({
   page,
 }) => {
-  await page.goto('/master-detail');
+  await page.goto('/#/master-detail');
   await page.getByText('Options', { exact: true }).click();
 
   await page.getByLabel('Show active zone overlay').check();
@@ -690,7 +694,7 @@ test('master-detail supports live active zone overlay and dynamic header offset 
 test('user wheel scrolling before delayed data readiness cancels initial restoration', async ({
   page,
 }) => {
-  await page.goto('/navigation?delay=1200#eintrag-4');
+  await page.goto('/#/navigation?delay=1200#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('Loading…');
   await page.locator('.viewport').hover();
   await page.mouse.wheel(0, 100);
@@ -707,7 +711,7 @@ test('user wheel scrolling before delayed data readiness cancels initial restora
 test('user keyboard scrolling before delayed data readiness cancels initial restoration', async ({
   page,
 }) => {
-  await page.goto('/navigation?delay=1200#eintrag-4');
+  await page.goto('/#/navigation?delay=1200#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('Loading…');
   await page.locator('.viewport').focus();
   await page.keyboard.press('ArrowDown');
@@ -724,7 +728,7 @@ test('user keyboard scrolling before delayed data readiness cancels initial rest
 test('typing inside form controls does not cancel pending initial restoration', async ({
   page,
 }) => {
-  await page.goto('/navigation?delay=1200#eintrag-4');
+  await page.goto('/#/navigation?delay=1200#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('Loading…');
   // Interact with input inside details
   await page.getByText('Loading behavior', { exact: true }).click();
@@ -736,7 +740,7 @@ test('typing inside form controls does not cancel pending initial restoration', 
 });
 
 test('explicit navigation functions normally after user cancellation', async ({ page }) => {
-  await page.goto('/navigation?delay=1200#eintrag-4');
+  await page.goto('/#/navigation?delay=1200#eintrag-4');
   await expect(page.getByRole('status')).toHaveText('Loading…');
   await page.locator('.viewport').hover();
   await page.mouse.wheel(0, 100);
@@ -755,19 +759,19 @@ test('explicit navigation functions normally after user cancellation', async ({ 
 test('subsequent external router fragment navigation restores target element alignment', async ({
   page,
 }) => {
-  await page.goto('/document#kapitel-1');
+  await page.goto('/#/document#kapitel-1');
   await aligned(page, '#kapitel-1', '.viewport');
 
   // Navigate to #kapitel-4 via router navigation
   await page.evaluate(() => {
-    window.location.hash = 'kapitel-4';
+    window.location.hash = '/document#kapitel-4';
   });
   await aligned(page, '#kapitel-4', '.viewport');
   await expect(page).toHaveURL(/#kapitel-4$/);
 
   // Navigate to #kapitel-2
   await page.evaluate(() => {
-    window.location.hash = 'kapitel-2';
+    window.location.hash = '/document#kapitel-2';
   });
   await aligned(page, '#kapitel-2', '.viewport');
   await expect(page).toHaveURL(/#kapitel-2$/);
@@ -776,12 +780,12 @@ test('subsequent external router fragment navigation restores target element ali
 test('browser history back and forward navigation automatically restores fragment position', async ({
   page,
 }) => {
-  await page.goto('/document#kapitel-1');
+  await page.goto('/#/document#kapitel-1');
   await aligned(page, '#kapitel-1', '.viewport');
 
   // Push new fragment to history
   await page.evaluate(() => {
-    window.location.hash = 'kapitel-3';
+    window.location.hash = '/document#kapitel-3';
   });
   await aligned(page, '#kapitel-3', '.viewport');
 
@@ -799,12 +803,12 @@ test('browser history back and forward navigation automatically restores fragmen
 test('subsequent navigation during async data loading queues and restores once data is ready', async ({
   page,
 }) => {
-  await page.goto('/navigation?delay=1200#eintrag-1');
+  await page.goto('/#/navigation?delay=1200#eintrag-1');
   await expect(page.getByRole('status')).toHaveText('Loading…');
 
   // Navigate to eintrag-4 while still loading
   await page.evaluate(() => {
-    window.location.hash = 'eintrag-4';
+    window.location.hash = '/navigation?delay=1200#eintrag-4';
   });
 
   await expect(page.getByRole('status')).toBeHidden();
