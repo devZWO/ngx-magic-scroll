@@ -205,13 +205,13 @@ test('scroll spy debounces a burst, uses the final anchor and reacts to a change
   const history = await page.evaluate(() => window.history.length);
   await placeAnchor(page, '#kapitel-3', '.viewport', 0);
   await page.clock.runFor(400);
-  await expect(page.locator('output')).toHaveText('');
+  await expect(page.locator('main output')).toHaveText('');
   await placeAnchor(page, '#kapitel-4', '.viewport', 0);
   await page.clock.runFor(500);
-  await expect(page.locator('output')).toHaveText('');
+  await expect(page.locator('main output')).toHaveText('');
   await page.clock.runFor(550);
   await expect(page).toHaveURL(/keep=yes#kapitel-4$/);
-  await expect(page.locator('output')).toHaveText('kapitel-4');
+  await expect(page.locator('main output')).toHaveText('kapitel-4');
   await page.getByLabel('Scroll-spy delay').selectOption('0');
   await placeAnchor(page, '#kapitel-2', '.viewport', 0);
   await page.clock.runFor(50);
@@ -247,7 +247,7 @@ test('anchor selection strategy options switch between prefixes and explicit-onl
   // Positioning the generated input must not discover matId as anchor in prefix mode; an eligible section is selected instead
   await placeAnchor(page, `#${matId}`, '.viewport', 0);
   await expect(page).toHaveURL(/#kapitel-3$/);
-  await expect(page.locator('output')).toHaveText('kapitel-3');
+  await expect(page.locator('main output')).toHaveText('kapitel-3');
 
   // In default single prefix mode: explicit marker spezial-notiz is eligible
   await page.getByRole('button', { name: 'spezial-notiz', exact: true }).click();
@@ -270,7 +270,7 @@ test('anchor selection strategy options switch between prefixes and explicit-onl
   // Positioning the generated input in explicit mode must not select matId; the only explicit marker spezial-notiz is selected
   await placeAnchor(page, `#${matId}`, '.viewport', 0);
   await expect(page).toHaveURL(/#spezial-notiz$/);
-  await expect(page.locator('output')).toHaveText('spezial-notiz');
+  await expect(page.locator('main output')).toHaveText('spezial-notiz');
 
   // Explicit target works in explicit mode
   await page.getByRole('button', { name: 'spezial-notiz', exact: true }).click();
@@ -341,11 +341,38 @@ test('navigation options changed through the UI preserve query parameters and hi
   await atOffset(page, '#eintrag-4', '.viewport', 64);
 });
 
+test('scrolling does not cancel a detail navigation delayed by the leave guard', async ({
+  page,
+}) => {
+  await page.goto('/#/navigation?leaveDelay=1000');
+  await expect(page.locator('#eintrag-3')).toBeAttached();
+  await page.clock.install();
+  await page.locator('.viewport').hover();
+  await page.mouse.wheel(0, 620);
+  await page.getByRole('link', { name: 'Details for 3', exact: true }).click({ timeout: 500 });
+  await page.clock.runFor(1000);
+
+  await expect(page.getByRole('heading', { name: 'Details for 3' })).toBeVisible();
+  await expect(page.getByLabel('Aborted navigation count')).toHaveText('0');
+});
+
+test('scrolling does not cancel navigation while the lazy route is loading', async ({ page }) => {
+  await page.goto('/#/document');
+  await page.clock.install();
+  await page.locator('.viewport').hover();
+  await page.mouse.wheel(0, 620);
+  await page.getByRole('link', { name: 'Open delayed lazy page' }).click();
+  await page.clock.runFor(1000);
+
+  await expect(page.getByRole('heading', { name: 'Slow lazy page loaded' })).toBeVisible();
+  await expect(page.getByLabel('Aborted navigation count')).toHaveText('0');
+});
+
 test('initial restoration waits for loading and does not repeat after a later reload', async ({
   page,
 }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
   await expect(page.locator('#eintrag-4')).not.toBeAttached();
   expect(await page.locator('.viewport').evaluate((el) => el.scrollTop)).toBe(0);
   await aligned(page, '#eintrag-4', '.viewport');
@@ -354,15 +381,15 @@ test('initial restoration waits for loading and does not repeat after a later re
   await page.getByText('Loading behavior', { exact: true }).click();
   await page.getByLabel('Loading delay (ms)').fill('300');
   await page.getByRole('button', { name: 'Reload list' }).click();
-  await expect(page.getByRole('status')).toHaveText('Loading…');
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await aligned(page, '#eintrag-6', '.viewport');
   await expect(page).toHaveURL(/#eintrag-6$/);
 });
 
 test('leaving a pending load prevents stale scrolling and URL updates', async ({ page }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
   // Retain the old DOM node to dispatch events after its directive has been destroyed.
   const oldViewport = await page.locator('.viewport').elementHandle();
   await page
@@ -399,7 +426,7 @@ test('an empty loaded list leaves the scroll position and requested fragment unt
   page,
 }) => {
   await page.goto('/#/navigation?result=empty#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('No entries.');
+  await expect(page.locator('p[role="status"]')).toHaveText('No entries.');
   await expect(page.locator('.viewport section')).toHaveCount(0);
   await page.clock.install();
   await page.clock.runFor(1000);
@@ -589,7 +616,7 @@ test('container scrolling activates fully visible sections and retains active re
 
   // kapitel-2 is fully contained within the visible container area
   await expect(page).toHaveURL(/#kapitel-2$/);
-  await expect(page.locator('output')).toHaveText('kapitel-2');
+  await expect(page.locator('main output')).toHaveText('kapitel-2');
 
   // When sections inside the container are tall (taller than container height), reading fallback keeps section active
   await page.locator('#kapitel-2').evaluate((el) => {
@@ -599,7 +626,7 @@ test('container scrolling activates fully visible sections and retains active re
 
   // kapitel-2 heading is scrolled past container top, but kapitel-3 is still below container bottom
   await expect(page).toHaveURL(/#kapitel-2$/);
-  await expect(page.locator('output')).toHaveText('kapitel-2');
+  await expect(page.locator('main output')).toHaveText('kapitel-2');
 });
 
 test('live activation threshold adjustment changes section trigger point', async ({ page }) => {
@@ -615,7 +642,7 @@ test('live activation threshold adjustment changes section trigger point', async
   });
   await placeAnchor(page, '#kapitel-2', '.viewport', -200);
   await expect(page).toHaveURL(/#kapitel-2$/);
-  await expect(page.locator('output')).toHaveText('kapitel-2');
+  await expect(page.locator('main output')).toHaveText('kapitel-2');
 
   // Now change activation threshold live to 75% (0.75 * 480 = 360px)
   // Since kapitel-3 top (250px) is <= 360px trigger line, kapitel-3 becomes active immediately
@@ -623,7 +650,7 @@ test('live activation threshold adjustment changes section trigger point', async
   await page.locator('.viewport').dispatchEvent('scroll');
 
   await expect(page).toHaveURL(/#kapitel-3$/);
-  await expect(page.locator('output')).toHaveText('kapitel-3');
+  await expect(page.locator('main output')).toHaveText('kapitel-3');
 });
 
 test('toggling active zone overlay renders exclusion zones and dynamic trigger badge', async ({
@@ -695,10 +722,10 @@ test('user wheel scrolling before delayed data readiness cancels initial restora
   page,
 }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
   await page.locator('.viewport').hover();
   await page.mouse.wheel(0, 100);
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await expect(page.locator('#eintrag-4')).toBeAttached();
   await page.waitForTimeout(300);
   const isAligned = await page.locator('#eintrag-4').evaluate((el) => {
@@ -712,10 +739,10 @@ test('user keyboard scrolling before delayed data readiness cancels initial rest
   page,
 }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
   await page.locator('.viewport').focus();
   await page.keyboard.press('ArrowDown');
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await expect(page.locator('#eintrag-4')).toBeAttached();
   await page.waitForTimeout(300);
   const isAligned = await page.locator('#eintrag-4').evaluate((el) => {
@@ -729,22 +756,22 @@ test('typing inside form controls does not cancel pending initial restoration', 
   page,
 }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
   // Interact with input inside details
   await page.getByText('Loading behavior', { exact: true }).click();
   await page.getByLabel('Loading delay (ms)').focus();
   await page.keyboard.press('ArrowDown');
   await page.getByLabel('Loading delay (ms)').fill('1200');
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await aligned(page, '#eintrag-4', '.viewport');
 });
 
 test('explicit navigation functions normally after user cancellation', async ({ page }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-4');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
   await page.locator('.viewport').hover();
   await page.mouse.wheel(0, 100);
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await expect(page.locator('#eintrag-4')).toBeAttached();
   await page.waitForTimeout(300);
 
@@ -804,14 +831,14 @@ test('subsequent navigation during async data loading queues and restores once d
   page,
 }) => {
   await page.goto('/#/navigation?delay=1200#eintrag-1');
-  await expect(page.getByRole('status')).toHaveText('Loading…');
+  await expect(page.locator('p[role="status"]')).toHaveText('Loading…');
 
   // Navigate to eintrag-4 while still loading
   await page.evaluate(() => {
     window.location.hash = '/navigation?delay=1200#eintrag-4';
   });
 
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await expect(page.locator('#eintrag-4')).toBeAttached();
   await aligned(page, '#eintrag-4', '.viewport');
   await expect(page).toHaveURL(/#eintrag-4$/);

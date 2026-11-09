@@ -9,7 +9,7 @@ test('document synchronizes scroll, fragment and active anchor without adding hi
   const history = await page.evaluate(() => window.history.length);
   await page.getByRole('button', { name: 'kapitel-3', exact: true }).click();
   await expect(page).toHaveURL(/keep=yes#kapitel-3$/);
-  await expect(page.locator('output')).toHaveText('kapitel-3');
+  await expect(page.locator('main output')).toHaveText('kapitel-3');
   await aligned(page, '#kapitel-3', '.viewport');
   await page.locator('.viewport').evaluate((el) => (el.scrollTop = 840));
   await expect(page).toHaveURL(/#kapitel-4$/);
@@ -64,8 +64,8 @@ test('Material drawer supports restoration, scroll synchronization, reload and p
   await expect(page.locator('#antrag-card-12')).toBeAttached();
   await aligned(page, '#antrag-card-6', 'mat-drawer-content');
   await page.getByRole('button', { name: 'Reload data' }).click();
-  await expect(page.getByRole('status')).toBeVisible();
-  await expect(page.getByRole('status')).toBeHidden();
+  await expect(page.locator('p[role="status"]')).toBeVisible();
+  await expect(page.locator('p[role="status"]')).toBeHidden();
   await aligned(page, '#antrag-card-6', 'mat-drawer-content');
   await page.getByRole('button', { name: 'Application 10', exact: true }).click();
   await expect(page).toHaveURL(/count=12#antrag-card-10$/);
@@ -192,9 +192,14 @@ test('navigation options survive back navigation and restore asynchronously with
   await expect(page.getByLabel('Scroll behavior')).toHaveValue('smooth');
   await expect(page.getByLabel('Top offset')).toHaveValue('64');
   await page.getByRole('link', { name: 'Details for 4', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Details for 4' })).toBeVisible();
   await page.goBack();
+  await expect(page).toHaveURL(/#\/navigation\?.*#eintrag-4$/);
+  await expect(page.getByRole('heading', { name: 'Navigation · Restore position' })).toBeVisible();
+  await expect(page.locator('#eintrag-4')).toBeAttached();
   await atOffset(page, '#eintrag-4', '.viewport', 64);
   await page.reload();
+  await expect(page.locator('#eintrag-4')).toBeAttached();
   await atOffset(page, '#eintrag-4', '.viewport', 64);
 });
 test('drawer options preserve the visible anchor when data is inserted above it', async ({

@@ -1,7 +1,7 @@
 import { Component, InjectionToken, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, type RouterEvent } from '@angular/router';
 import { patchState, signalStore, withMethods, withState } from '@ngrx/signals';
 import {
   QueryClient,
@@ -10,7 +10,7 @@ import {
   provideTanStackQuery,
 } from '@tanstack/angular-query-experimental';
 import { BehaviorSubject, Subject } from 'rxjs';
-import { MagicScrollDirective } from './magic-scroll.directive';
+import { MagicScrollDirective } from 'ngx-magic-scroll';
 import { ScrollDataSource, ScrollSource } from '../../public-api';
 import { ScrollService } from '../navigation/scroll-service';
 
@@ -60,7 +60,12 @@ function setup<T extends { source: ScrollSource; items: () => Item[] }>(
       { provide: ActivatedRoute, useValue: { snapshot: { fragment: initialAnchor }, fragment } },
       {
         provide: Router,
-        useValue: { createUrlTree: vi.fn(), navigateByUrl: vi.fn(async () => true) },
+        useValue: {
+          createUrlTree: vi.fn(),
+          navigateByUrl: vi.fn(async () => true),
+          currentNavigation: () => null,
+          events: new Subject<RouterEvent>(),
+        },
       },
       { provide: SOURCE, useFactory: () => source.source },
       { provide: ITEMS, useFactory: () => source.items },

@@ -13,11 +13,7 @@ import {
   untracked,
 } from '@angular/core';
 import { ActivatedRoute, Navigation, Router } from '@angular/router';
-import {
-  linkedRouteFragment,
-  MAGIC_SCROLL_ORIGIN_KEY,
-  MAGIC_SCROLL_ORIGIN_SCROLL_SPY,
-} from '../navigation/linked-route-fragment';
+import { isLibraryNavigation, linkedRouteFragment } from '../navigation/linked-route-fragment';
 import { injectScrollableParentElement } from '../navigation/inject-scrollable-parent';
 import { NearestAnchorProvider } from '../navigation/nearest-anchor.provider';
 import { ScrollOptions, ScrollService } from '../navigation/scroll-service';
@@ -163,6 +159,9 @@ export class MagicScrollDirective {
 
   /** Bidirectional route fragment synchronization signal (debounced URL writer and listener). */
   private readonly fragment = linkedRouteFragment();
+
+  /** Fragment value most recently written locally, so phase 3 does not restore it as external. */
+  private localFragmentWrite?: string;
 
   /** Initial route URL fragment snapshot captured upon directive instantiation. */
   private readonly initialAnchor = inject(ActivatedRoute).snapshot.fragment;
@@ -386,6 +385,8 @@ export class MagicScrollDirective {
     effect(() => {
       const frag = this.fragment();
       untracked(() => {
+        const isLocalWrite = frag === this.localFragmentWrite;
+        this.localFragmentWrite = undefined;
         const prev = this.lastProcessedFragment;
         this.lastProcessedFragment = frag;
         this.liveAnchor.set(frag);
@@ -395,7 +396,7 @@ export class MagicScrollDirective {
         }
 
         if (frag) {
-          if (!this.isInternalNavigation()) {
+          if (!isLocalWrite && !this.isInternalNavigation()) {
             this.cancelScheduledFocus();
             this.cancelLayoutPreservation();
             this.cancelSmoothNavigation();
@@ -431,7 +432,7 @@ export class MagicScrollDirective {
       if (!this.scrollRevision()) return;
       const anchor = this.calculateNearestAnchor();
       if (anchor) {
-        this.fragment.set(anchor);
+        this.setLocalFragment(anchor);
       }
     });
   }
@@ -446,16 +447,13 @@ export class MagicScrollDirective {
         : this.router?.lastSuccessfulNavigation;
     const nav: Navigation | null =
       typeof raw === 'function' ? (raw as () => Navigation | null)() : (raw ?? null);
-    const stateOrigin = (nav?.extras?.state as Record<string, unknown> | undefined)?.[
-      MAGIC_SCROLL_ORIGIN_KEY
-    ];
-    const infoOrigin = (nav?.extras?.info as Record<string, unknown> | undefined)?.[
-      MAGIC_SCROLL_ORIGIN_KEY
-    ];
-    return (
-      infoOrigin === MAGIC_SCROLL_ORIGIN_SCROLL_SPY ||
-      (nav?.trigger !== 'popstate' && stateOrigin === MAGIC_SCROLL_ORIGIN_SCROLL_SPY)
-    );
+    return isLibraryNavigation(nav);
+  }
+
+  private setLocalFragment(value: string): void {
+    if (value === this.fragment()) return;
+    this.localFragmentWrite = value;
+    this.fragment.set(value);
   }
 
   /**
@@ -498,7 +496,7 @@ export class MagicScrollDirective {
       this.pendingDestination = null;
       this.cancelDestinationRetry();
       this.cancelLayoutPreservation();
-      this.fragment.set(clean);
+      this.setLocalFragment(clean);
     }
     if (options.focus && targetEl) {
       if (executed && willScroll && this.hasSmoothScrollBehavior(behavior)) {

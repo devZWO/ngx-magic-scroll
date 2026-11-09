@@ -9,4 +9,10 @@
   </nav>
   <a class="docs-link" href="https://devzwo.github.io/ngx-magic-scroll/">Documentation</a>
 </header>
+<p>
+  Aborted navigations:
+  <output aria-live="polite" aria-label="Aborted navigation count">{{
+    abortedNavigationCount()
+  }}</output>
+</p>
 <main><router-outlet /></main>

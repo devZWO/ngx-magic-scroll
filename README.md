@@ -17,8 +17,10 @@ All descendant IDs are anchors by default; `scrollAnchor` is optional.
 restoration/interaction behavior. Region and per-call options can override them.
 
 See the [library README](projects/ngx-magic-scroll/README.md) for examples and the migration guide.
-Low-level scrolling and reactive helpers are internal. All four demos use the facade; their 25 existing
-E2E scenarios pass unchanged in Chromium, Firefox and WebKit (75 runs).
+Low-level scrolling and reactive helpers are internal. All four demos use the facade; 27 E2E scenarios
+cover navigation and restoration behavior in Chromium, Firefox and WebKit (81 runs).
+
+Scroll-spy fragment writes yield to in-flight Router navigations, so scrolling cannot supersede a pending guard, resolver or lazy route load.
 
 ## Workspace
 

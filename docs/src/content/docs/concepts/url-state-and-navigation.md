@@ -98,6 +98,40 @@ graph TD
     DestinationQueue -->|Wait for Source Ready & DOM| ScrollExec[ScrollService.scroll]
 ```
 
+## URL updates yield to in-flight navigations
+
+A scroll-spy update or `scrollTo()` can become due while the Router is still resolving a user navigation. The fragment writer does not start a competing navigation in that case: it retains the latest requested fragment and lets the user's navigation finish without `SupersededByNewNavigation`.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Router
+    participant Guard as Async guard / resolver / lazy loader
+    participant Writer as linkedRouteFragment
+    participant View as Scroll region
+
+    User->>Router: Navigate to another URL
+    Router->>Guard: Start pending route work
+    Guard-->>Router: Wait for decision or loading
+    View->>Writer: Write the latest visible anchor
+    Writer->>Writer: Defer fragment and remember route path
+    Note over Writer,Router: No competing navigateByUrl is started
+    alt Navigation is canceled, errors or is skipped
+        Router-->>Writer: NavigationCancel / Error / Skipped
+        Writer->>Router: Publish latest fragment with replaceUrl
+    else Navigation ends on the same path without a new fragment
+        Router-->>Writer: NavigationEnd (query may differ)
+        Writer->>Router: Publish latest fragment with replaceUrl
+    else Different path, new fragment or destroyed region
+        Router-->>Writer: NavigationEnd or region destruction
+        Writer->>Writer: Discard deferred fragment
+    end
+```
+
+On `NavigationCancel`, `NavigationError` or `NavigationSkipped`, the last deferred value is published once if it still differs from the URL fragment. After `NavigationEnd`, it is published only when the path (compared without query parameters and fragment) is unchanged; a route change discards it. A fragment explicitly set by the user navigation wins, and a destroyed region never publishes later. The queued write still uses `replaceUrl`, and `scrollTo()` performs its scroll immediately while only its URL update is deferred. Deferred local writes are not treated as external fragment changes by phase-3 restoration.
+
+If a test Router mock omits `currentNavigation()` or `events`, the library keeps its previous immediate-write behavior and emits one `console.warn` per `linkedRouteFragment` instance to make the missing in-flight protection visible.
+
 ## URL updates preserve the current history entry
 
 Library fragment updates preserve query parameters and use Angular Router's `replaceUrl`. Scrolling through sections therefore updates the current history entry instead of creating a new entry for every anchor.
