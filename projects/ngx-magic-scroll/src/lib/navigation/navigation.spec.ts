@@ -1,9 +1,10 @@
-import { Component, ElementRef, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   ActivatedRoute,
   DefaultUrlSerializer,
   NavigationCancel,
+  NavigationCancellationCode,
   NavigationEnd,
   NavigationError,
   NavigationSkipped,
@@ -688,6 +689,60 @@ describe('route fragment', () => {
     expect(router.url).toBe('/a#after-cancel');
   });
 
+  it('does not supersede the navigation started by a guard redirect', async () => {
+    const redirectGate = createNavigationGate();
+    const targetGate = createNavigationGate();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'a', component: FragmentNavigationHost },
+          {
+            path: 'b',
+            component: PendingNavigationTarget,
+            canActivate: [
+              () => {
+                const router = inject(Router);
+                redirectGate.start();
+                return redirectGate.result.then(() => router.parseUrl('/c'));
+              },
+            ],
+          },
+          {
+            path: 'c',
+            component: PendingNavigationTarget,
+            canActivate: [
+              () => {
+                targetGate.start();
+                return targetGate.result;
+              },
+            ],
+          },
+        ]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const host = await harness.navigateByUrl('/a#original', FragmentNavigationHost);
+    const router = TestBed.inject(Router);
+    const cancellations: NavigationCancel[] = [];
+    router.events.subscribe((event) => {
+      if (event instanceof NavigationCancel) cancellations.push(event);
+    });
+
+    const navigation = router.navigateByUrl('/b');
+    await redirectGate.started;
+    host.fragment.set('during-redirect');
+    TestBed.tick();
+    redirectGate.complete(true);
+    await targetGate.started;
+    await Promise.resolve();
+    targetGate.complete(true);
+    await navigation;
+    await harness.fixture.whenStable();
+
+    expect(router.url).toBe('/c');
+    expect(cancellations.map((event) => event.code)).toEqual([NavigationCancellationCode.Redirect]);
+  });
+
   it('starts the deferred same-path fragment navigation after the real query navigation ends', async () => {
     const gate = createNavigationGate();
     let waitForQueryChange = false;
@@ -797,6 +852,8 @@ describe('route fragment', () => {
     TestBed.tick();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
 
+    // Like the real Router, the navigation is no longer current once its terminal event is seen.
+    router.currentNavigation.set(null);
     router.events.next(createEvent(router.url));
     await Promise.resolve();
 
@@ -819,6 +876,7 @@ describe('route fragment', () => {
     fragment.set('deferred');
     TestBed.tick();
 
+    router.currentNavigation.set(null);
     router.events.next(new NavigationEnd(1, '/a?new=2', '/a?new=2'));
     await Promise.resolve();
 
@@ -842,6 +900,28 @@ describe('route fragment', () => {
     await Promise.resolve();
 
     expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('keeps deferring when another user navigation starts before the queued publication', async () => {
+    const { fragment, router } = setupWriter();
+    router.currentNavigation.set(createNavigation(router.url));
+    fragment.set('deferred');
+    TestBed.tick();
+
+    router.events.next(new NavigationCancel(1, router.url, 'redirect'));
+    router.currentNavigation.set(createNavigation('/a?redirected=1'));
+    await Promise.resolve();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+
+    router.currentNavigation.set(null);
+    router.events.next(new NavigationEnd(2, '/a?redirected=1', '/a?redirected=1'));
+    await Promise.resolve();
+
+    expect(router.navigateByUrl).toHaveBeenCalledOnce();
+    expect(router.createUrlTree).toHaveBeenCalledExactlyOnceWith(
+      [],
+      expect.objectContaining({ fragment: 'deferred' }),
+    );
   });
 
   it('does not overwrite a fragment supplied by the completed user navigation', async () => {

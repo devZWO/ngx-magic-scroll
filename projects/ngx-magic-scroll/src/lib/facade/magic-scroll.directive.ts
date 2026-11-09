@@ -451,7 +451,8 @@ export class MagicScrollDirective {
   }
 
   private setLocalFragment(value: string): void {
-    if (value === this.fragment()) return;
+    // Untracked: phase 4 must only re-run on scroll revisions, never on fragment changes.
+    if (value === untracked(() => this.fragment())) return;
     this.localFragmentWrite = value;
     this.fragment.set(value);
   }

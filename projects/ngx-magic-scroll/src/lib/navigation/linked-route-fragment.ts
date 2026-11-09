@@ -133,27 +133,35 @@ export function linkedRouteFragment(): WritableSignal<string | null | undefined>
       });
   }
 
+  /**
+   * Defers the write while a foreign (user) navigation is in flight, because navigateByUrl would
+   * supersede it. Only the current route identity is retained; the value stays in actualFragment.
+   */
+  function deferWhileForeignNavigation(): boolean {
+    const navigation =
+      typeof currentNavigation === 'function' ? untracked(() => currentNavigation()) : null;
+    if (!canProtectNavigation || !navigation || isLibraryNavigation(navigation)) return false;
+
+    deferredPath = pathKey(router, router.url);
+    return true;
+  }
+
   function publishDeferredWhenNeeded(): void {
     // Let the Router finish the current event before starting a replacement fragment navigation.
     queueMicrotask(() => {
-      if (!destroyRef.destroyed && actualFragment() !== fragment()) {
-        publish(actualFragment());
-      }
+      if (destroyRef.destroyed || actualFragment() === fragment()) return;
+      // A redirect, superseding navigation or another event subscriber may have started a new user
+      // navigation in the meantime; keep waiting for that one instead of cancelling it.
+      if (deferWhileForeignNavigation()) return;
+
+      publish(actualFragment());
     });
   }
 
   effect(() => {
     const newFragment = actualFragment();
     const currentRouteFragment = fragment();
-    if (currentRouteFragment !== newFragment) {
-      const navigation =
-        typeof currentNavigation === 'function' ? untracked(() => currentNavigation()) : null;
-      if (canProtectNavigation && navigation && !isLibraryNavigation(navigation)) {
-        // navigateByUrl would supersede this user navigation; retain only the route identity here.
-        deferredPath = pathKey(router, router.url);
-        return;
-      }
-
+    if (currentRouteFragment !== newFragment && !deferWhileForeignNavigation()) {
       publish(newFragment);
     }
   });

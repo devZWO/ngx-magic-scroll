@@ -303,6 +303,33 @@ it('treats a debounced scroll-spy write as local and clears its marker for later
   expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('explicit', expect.anything());
 });
 
+it('does not republish scroll-spy anchors when only the route fragment changes', () => {
+  vi.useFakeTimers();
+  const { host, container, region, render, scroll, routeFragment, router } = setup('item-1');
+  host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+  host.source.set([1]);
+  render();
+  region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(-400);
+  region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(110);
+
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(500);
+  render();
+  expect(router.navigateByUrl).toHaveBeenCalledOnce();
+  routeFragment.next('item-2');
+  render();
+  scroll.scroll.mockClear();
+
+  // An external navigation back to item-1 must not re-run phase 4 against the old viewport.
+  router.setNavigation({}, 'imperative');
+  routeFragment.next('item-1');
+  render();
+
+  expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('item-1', expect.anything());
+  expect(host.scroll().activeAnchor()).toBe('item-1');
+  expect(router.navigateByUrl).toHaveBeenCalledOnce();
+});
+
 it('waits for explicit undefined input, restores once, and preserves later data with the current fragment', () => {
   const { host, render, scroll, routeFragment } = setup();
   expect(scroll.scroll).not.toHaveBeenCalled();
