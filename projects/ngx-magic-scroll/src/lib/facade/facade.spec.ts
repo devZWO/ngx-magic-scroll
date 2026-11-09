@@ -1,8 +1,14 @@
 import { Component, Injector, signal, viewChild } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import {
+  ActivatedRoute,
+  DefaultUrlSerializer,
+  Router,
+  type RouterEvent,
+  type UrlTree,
+} from '@angular/router';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { MagicScrollDirective } from 'ngx-magic-scroll';
 import { ScrollAnchorDirective } from 'ngx-magic-scroll';
 import {
@@ -213,8 +219,14 @@ class Host {
 function setup(fragment: string | null = 'item-1') {
   const routeFragment = new BehaviorSubject(fragment);
   const scroll = { scroll: vi.fn(() => true) };
+  const serializer = new DefaultUrlSerializer();
   let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null = null;
   const router = {
+    url: '/test?query=1',
+    currentNavigation: () => currentNav,
+    events: new Subject<RouterEvent>(),
+    parseUrl: (url: string) => serializer.parse(url),
+    serializeUrl: (tree: UrlTree) => serializer.serialize(tree),
     createUrlTree: vi.fn(),
     navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
       currentNav = { extras, trigger: 'imperative' };
@@ -250,6 +262,73 @@ function setup(fragment: string | null = 'item-1') {
   };
   return { fixture, host, container, region, render, scroll, routeFragment, router };
 }
+
+it('keeps scrollTo immediate without publishing over a pending foreign navigation', () => {
+  const { host, router, render, scroll } = setup();
+  host.source.set([1, 2]);
+  render();
+  scroll.scroll.mockClear();
+  const previousNavigationCount = router.navigateByUrl.mock.calls.length;
+  router.setNavigation({}, 'imperative');
+
+  expect(host.scroll().scrollTo('item-2')).toBe(true);
+  expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('item-2', expect.anything());
+  render();
+
+  expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('item-2', expect.anything());
+  expect(router.navigateByUrl).toHaveBeenCalledTimes(previousNavigationCount);
+});
+
+it('treats a debounced scroll-spy write as local and clears its marker for later external fragments', () => {
+  vi.useFakeTimers();
+  const { host, container, region, render, scroll, routeFragment, router } = setup('item-1');
+  host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+  host.source.set([1]);
+  render();
+  scroll.scroll.mockClear();
+  region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(-400);
+  region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(110);
+  router.setNavigation({}, 'imperative');
+
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(500);
+  render();
+
+  expect(host.scroll().activeAnchor()).toBe('item-2');
+  expect(router.navigateByUrl).not.toHaveBeenCalled();
+  expect(scroll.scroll).not.toHaveBeenCalled();
+
+  routeFragment.next('explicit');
+  render();
+  expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('explicit', expect.anything());
+});
+
+it('does not republish scroll-spy anchors when only the route fragment changes', () => {
+  vi.useFakeTimers();
+  const { host, container, region, render, scroll, routeFragment, router } = setup('item-1');
+  host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+  host.source.set([1]);
+  render();
+  region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(-400);
+  region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(110);
+
+  container.dispatchEvent(new Event('scroll'));
+  vi.advanceTimersByTime(500);
+  render();
+  expect(router.navigateByUrl).toHaveBeenCalledOnce();
+  routeFragment.next('item-2');
+  render();
+  scroll.scroll.mockClear();
+
+  // An external navigation back to item-1 must not re-run phase 4 against the old viewport.
+  router.setNavigation({}, 'imperative');
+  routeFragment.next('item-1');
+  render();
+
+  expect(scroll.scroll).toHaveBeenCalledExactlyOnceWith('item-1', expect.anything());
+  expect(host.scroll().activeAnchor()).toBe('item-1');
+  expect(router.navigateByUrl).toHaveBeenCalledOnce();
+});
 
 it('waits for explicit undefined input, restores once, and preserves later data with the current fragment', () => {
   const { host, render, scroll, routeFragment } = setup();
@@ -1206,9 +1285,15 @@ describe('subsequent router fragment navigation', () => {
     vi.useFakeTimers();
     const routeFragment = new BehaviorSubject<string | null>('a-1');
     const scroll = { scroll: vi.fn(() => true) };
+    const serializer = new DefaultUrlSerializer();
     let currentNav: { extras?: { state?: unknown; info?: unknown }; trigger?: string } | null =
       null;
     const router = {
+      url: '/test?query=1',
+      currentNavigation: () => currentNav,
+      events: new Subject<RouterEvent>(),
+      parseUrl: (url: string) => serializer.parse(url),
+      serializeUrl: (tree: UrlTree) => serializer.serialize(tree),
       createUrlTree: vi.fn(),
       navigateByUrl: vi.fn((_tree: unknown, extras?: { state?: unknown; info?: unknown }) => {
         currentNav = { extras, trigger: 'imperative' };
@@ -1303,6 +1388,8 @@ describe('subsequent router fragment navigation', () => {
       createUrlTree: vi.fn(),
       navigateByUrl: vi.fn(async () => true),
       getCurrentNavigation: vi.fn(() => null),
+      currentNavigation: () => null,
+      events: new Subject<RouterEvent>(),
       lastSuccessfulNavigation: navSignal,
     };
 

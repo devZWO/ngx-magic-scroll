@@ -73,6 +73,8 @@ Child providers inherit unspecified settings. Override an individual region with
 
 Navigation, reload and the first successful asynchronous load use `behavior.restoration`. Later data changes and resize/header corrections adjust instantly to stabilize the layout. `restoreOnDataChange: false` and `preserveOnResize: false` opt out of data corrections and resize/header corrections respectively. Visibility rules are: `none`, `top`, `full` and `always` (at least one edge visible).
 
+Scroll-spy and `scrollTo()` URL updates wait while a user Router navigation is in flight, preventing the fragment write from canceling pending guards, resolvers or lazy loading. If that navigation is canceled, the latest fragment is restored; after a successful navigation it is written only when the route path stays the same and no new fragment was chosen.
+
 ## Anchor selection and explicit anchors
 
 By default (`anchorSelection: 'all'`), all descendant IDs participate unless constrained by `anchorPrefixes`.
@@ -117,9 +119,9 @@ container manually. The existing scroll implementation remains internal to the f
 
 ## Demo and verification
 
-Four routed examples demonstrate document synchronization, asynchronous navigation restoration, Material `mat-drawer-container` with pagination, and master–detail document scrolling with a measured sticky header. Options are presented inside these demos.
+Routed examples demonstrate document synchronization, asynchronous navigation restoration, Material `mat-drawer-container` with pagination, master–detail document scrolling with a measured sticky header, and delayed lazy loading. Options are presented inside these demos.
 
-`pnpm test:ci` enforces 100% statements, branches, functions and lines per library implementation file. The existing 25 E2E scenarios remain unchanged after the migration to the facade and pass in Chromium, Firefox and WebKit (75 runs).
+`pnpm test:ci` enforces 100% statements, branches, functions and lines per library implementation file. The 27 E2E scenarios cover fragment synchronization, in-flight navigation protection, query parameter preservation, asynchronous restoration, browser back, reload, resize, drawer toggling and pagination.
 
 [Documentation and API](https://devzwo.github.io/ngx-magic-scroll/) · [AI Agent Guide](ai/usage.md) · [llms.txt Index](https://devzwo.github.io/ngx-magic-scroll/llms.txt) · [Changelog](CHANGELOG.md) · [Source and issues](https://github.com/devZWO/ngx-magic-scroll)
 

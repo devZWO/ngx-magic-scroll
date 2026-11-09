@@ -1,13 +1,21 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { DetailExample, DocumentExample, DrawerExample, NavigationExample } from './examples';
+import { leaveDelayGuard } from './leave-delay.guard';
+import { SlowLazyExample } from './slow-lazy-example';
+
+@Component({ template: '<h1>Target</h1>' })
+class LeaveDelayTarget {}
 
 describe('Demo Examples', () => {
   beforeEach(() => {
     Element.prototype.scrollTo = vi.fn();
     window.scrollTo = vi.fn();
   });
+  afterEach(() => vi.useRealTimers());
   it('instantiates and operates DocumentExample', async () => {
     TestBed.configureTestingModule({
       imports: [DocumentExample],
@@ -19,6 +27,9 @@ describe('Demo Examples', () => {
 
     const comp = fixture.componentInstance;
     expect(comp.options()).toBeDefined();
+    expect(fixture.nativeElement.querySelector('a[href="/slow-lazy"]')?.textContent).toContain(
+      'Open delayed lazy page',
+    );
 
     comp.strategy.set('prefix');
     expect(comp.options().anchorPrefixes).toEqual(['kapitel-']);
@@ -98,6 +109,7 @@ describe('Demo Examples', () => {
                 scroll: 'auto',
                 offset: '40',
                 delay: '1',
+                leaveDelay: '450',
                 result: 'empty',
               }),
               paramMap: convertToParamMap({ id: '42' }),
@@ -115,10 +127,17 @@ describe('Demo Examples', () => {
     const navComp = navFixture.componentInstance;
     expect(navComp.behavior()).toBe('auto');
     expect(navComp.offset()).toBe(40);
+    expect(navComp.leaveDelay()).toBe(450);
     navComp.showOverlay.set(true);
     navComp.setOptions('instant', 60);
     expect(navComp.behavior()).toBe('instant');
     expect(navComp.offset()).toBe(60);
+    const leaveDelayInput = navFixture.nativeElement.querySelector(
+      'input[type="number"]',
+    ) as HTMLInputElement;
+    leaveDelayInput.value = '900';
+    leaveDelayInput.dispatchEvent(new Event('input'));
+    expect(navComp.leaveDelay()).toBe(900);
     expect(navComp.entries()).toEqual([]);
 
     // Error result branch
@@ -137,6 +156,41 @@ describe('Demo Examples', () => {
     expect(detailComp.id).toBe('42');
     expect(detailComp.listPath).toBe('/navigation');
     expect(detailComp.prefix).toBe('eintrag-');
+  });
+
+  it('renders the delayed lazy route page', () => {
+    TestBed.configureTestingModule({ imports: [SlowLazyExample], providers: [provideRouter([])] });
+    const fixture = TestBed.createComponent(SlowLazyExample);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain(
+      'Slow lazy page loaded',
+    );
+  });
+
+  it('holds a route change until the configured leave delay expires', async () => {
+    vi.useFakeTimers();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'navigation', component: NavigationExample, canDeactivate: [leaveDelayGuard] },
+          { path: 'target', component: LeaveDelayTarget },
+        ]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/navigation?leaveDelay=50', NavigationExample);
+    const router = TestBed.inject(Router);
+    const navigation = router.navigateByUrl('/target');
+
+    await vi.advanceTimersByTimeAsync(49);
+    expect(router.url).toContain('/navigation');
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await navigation).toBe(true);
+    expect(router.url).toBe('/target');
+
+    await router.navigateByUrl('/navigation?leaveDelay=0');
+    expect(await router.navigateByUrl('/target')).toBe(true);
   });
 
   it('handles default navigation query params', async () => {

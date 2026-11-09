@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes & Behavioral Changes
+
+- Fix #17: defer scroll-spy and `scrollTo()` fragment updates while a user Router navigation is in flight, preserving the latest reading position without canceling guards, resolvers or lazy route loading.
+
 ## Release v1.1.1 (2026-10-18)
 
 ### Features

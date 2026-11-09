@@ -19,6 +19,7 @@ import {
   imports: [
     MagicScrollDirective,
     ScrollAnchorDirective,
+    RouterLink,
     ScrollOptionsPanel,
     ActiveZoneOverlay,
     MatFormFieldModule,
@@ -27,6 +28,7 @@ import {
   providers: [provideMagicScroll({ anchorPrefixes: ['kapitel-'] })],
   template: `<h1>Document · Synchronize anchors</h1>
     <p>Scrolling updates the active section and the URL fragment.</p>
+    <p><a routerLink="/slow-lazy">Open delayed lazy page</a></p>
     <app-scroll-options
       [(behavior)]="behavior"
       [(offset)]="offset"
@@ -190,7 +192,13 @@ export class DocumentExample {
 }
 
 @Component({
-  imports: [RouterLink, ScrollOptionsPanel, ActiveZoneOverlay, MagicScrollDirective],
+  imports: [
+    RouterLink,
+    ScrollOptionsPanel,
+    ActiveZoneOverlay,
+    MagicScrollDirective,
+    ParamHelpButton,
+  ],
   providers: [provideMagicScroll({ anchorPrefixes: ['eintrag-'] })],
   template: `<h1>Navigation · Restore position</h1>
     <p>
@@ -207,6 +215,18 @@ export class DocumentExample {
       (offsetChange)="setOptions(behavior(), $event)"
     />
     <p>Selected options remain in the URL across detail navigation and reload.</p>
+    <details>
+      <summary>Navigation behavior</summary>
+      <label
+        >Leave delay (ms)<input
+          type="number"
+          min="0"
+          max="5000"
+          [value]="leaveDelay()"
+          (input)="setLeaveDelayFromInput($event)"
+      /></label>
+      <app-param-help paramId="leaveDelay" />
+    </details>
     <details>
       <summary>Loading behavior</summary>
       <label
@@ -273,6 +293,22 @@ export class NavigationExample {
   readonly bottomOffset = signal(0);
   readonly activationThreshold = signal(0);
   readonly showOverlay = signal(false);
+  readonly leaveDelay = signal(
+    Math.max(0, Math.min(5000, Number(this.route.snapshot.queryParamMap.get('leaveDelay')) || 0)),
+  );
+  setLeaveDelayFromInput(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    if (!input) return;
+    const delay = Math.max(0, Math.min(5000, Number(input.value) || 0));
+    this.leaveDelay.set(delay);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { leaveDelay: delay },
+      queryParamsHandling: 'merge',
+      preserveFragment: true,
+      replaceUrl: true,
+    });
+  }
   setOptions(behavior: ScrollBehavior, offset: number) {
     this.behavior.set(behavior);
     this.offset.set(offset);

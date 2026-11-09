@@ -147,6 +147,21 @@ export const PARAM_HELP_INFO: Record<string, ParamHelpInfo> = {
       },
     ],
   },
+  leaveDelay: {
+    id: 'leaveDelay',
+    title: 'Leave Delay',
+    summary:
+      'Artificially delays leaving the navigation example so in-flight route transitions can be tested.',
+    impact:
+      'Use this control to reproduce a scroll-spy URL update while a canDeactivate guard is waiting for the user navigation to complete.',
+    scopes: ['demo'],
+    docLinks: [
+      {
+        label: 'URL State & Navigation Concept',
+        url: 'https://devzwo.github.io/ngx-magic-scroll/concepts/url-state-and-navigation/',
+      },
+    ],
+  },
   anchorSelection: {
     id: 'anchorSelection',
     title: 'Anchor Selection',

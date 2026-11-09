@@ -1,12 +1,29 @@
-import { Component, ElementRef, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import {
+  ActivatedRoute,
+  DefaultUrlSerializer,
+  NavigationCancel,
+  NavigationCancellationCode,
+  NavigationEnd,
+  NavigationError,
+  NavigationSkipped,
+  NavigationStart,
+  provideRouter,
+  Route,
+  Router,
+  type Event as AngularRouterEvent,
+  type Navigation,
+  type RouterEvent,
+  type UrlTree,
+} from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { BehaviorSubject, filter, firstValueFrom, Subject } from 'rxjs';
 import { ScrollService } from './scroll-service';
 import { NearestAnchorProvider } from './nearest-anchor.provider';
 import { injectedHeaderHeight } from './inject-header-size';
 import { injectScrollableParentElement } from './inject-scrollable-parent';
-import { linkedRouteFragment } from './linked-route-fragment';
+import { isLibraryNavigation, linkedRouteFragment } from './linked-route-fragment';
 import { NearestAnchorScrollHook } from './nearest-anchor-scroll-hook';
 import { PreserveVisibleAnchorOnResize } from './preserve-visible-anchor-on-resize.directive';
 import { ScrollToFragmentOnFirstDataDirective } from './scroll-to-fragment-on-first-data.directive';
@@ -39,8 +56,135 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
+
+type PendingNavigationPhase =
+  'canDeactivate' | 'canActivate' | 'canMatch' | 'resolver' | 'loadComponent' | 'loadChildren';
+
+function createNavigationGate() {
+  let markStarted!: () => void;
+  let complete!: (allowed: boolean) => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const result = new Promise<boolean>((resolve) => {
+    complete = resolve;
+  });
+  return {
+    started,
+    result,
+    start: () => markStarted(),
+    complete: (allowed: boolean) => complete(allowed),
+  };
+}
+
+@Component({ selector: 'fragment-navigation-host', template: '' })
+class FragmentNavigationHost {
+  readonly fragment = linkedRouteFragment();
+}
+
+@Component({ template: '<h1>Target</h1>' })
+class PendingNavigationTarget {}
+
+@Component({ selector: 'fragment-writer-host', template: '' })
+class FragmentWriterHost {
+  readonly fragment = linkedRouteFragment();
+}
+
+function createNavigation(
+  url: string,
+  extras: Navigation['extras'] = {},
+  trigger: Navigation['trigger'] = 'imperative',
+): Navigation {
+  const tree = new DefaultUrlSerializer().parse(url);
+  return {
+    id: 1,
+    initialUrl: tree,
+    extractedUrl: tree,
+    trigger,
+    extras,
+    previousNavigation: null,
+    abort: () => {},
+  };
+}
+
+function createWriterRouter() {
+  const serializer = new DefaultUrlSerializer();
+  return {
+    currentNavigation: signal<Navigation | null>(null),
+    events: new Subject<RouterEvent>(),
+    url: '/a?old=1',
+    parseUrl: (url: string) => serializer.parse(url),
+    serializeUrl: (tree: UrlTree) => serializer.serialize(tree),
+    createUrlTree: vi.fn(() => 'tree'),
+    navigateByUrl: vi.fn(() => Promise.resolve(true)),
+  };
+}
+
+function setupWriter(initialFragment = 'original') {
+  const routeFragment = new BehaviorSubject<string | null>(initialFragment);
+  const router = createWriterRouter();
+  TestBed.configureTestingModule({
+    providers: [
+      {
+        provide: ActivatedRoute,
+        useValue: { fragment: routeFragment, snapshot: { fragment: initialFragment } },
+      },
+      { provide: Router, useValue: router },
+    ],
+  });
+  const fragment = TestBed.runInInjectionContext(linkedRouteFragment);
+  TestBed.tick();
+  return { fragment, routeFragment, router };
+}
+
+async function setupPendingNavigation(
+  phase: PendingNavigationPhase,
+  gate: ReturnType<typeof createNavigationGate>,
+) {
+  const sourceRoute: Route = { path: 'a', component: FragmentNavigationHost };
+  const targetRoute: Route = { path: 'b', component: PendingNavigationTarget };
+  const wait = () => {
+    gate.start();
+    return gate.result;
+  };
+
+  switch (phase) {
+    case 'canDeactivate':
+      sourceRoute.canDeactivate = [wait];
+      break;
+    case 'canActivate':
+      targetRoute.canActivate = [wait];
+      break;
+    case 'canMatch':
+      targetRoute.canMatch = [wait];
+      break;
+    case 'resolver':
+      targetRoute.resolve = { result: wait };
+      break;
+    case 'loadComponent':
+      delete targetRoute.component;
+      targetRoute.loadComponent = async () => {
+        await wait();
+        return PendingNavigationTarget;
+      };
+      break;
+    case 'loadChildren':
+      delete targetRoute.component;
+      targetRoute.loadChildren = async () => {
+        await wait();
+        return [{ path: '', component: PendingNavigationTarget }];
+      };
+      break;
+  }
+
+  TestBed.configureTestingModule({ providers: [provideRouter([sourceRoute, targetRoute])] });
+  const harness = await RouterTestingHarness.create();
+  const host = await harness.navigateByUrl('/a#original', FragmentNavigationHost);
+  return { harness, host, router: TestBed.inject(Router) };
+}
 
 describe('ScrollService', () => {
   it('handles missing targets and applies offsets in a single instant or smooth document scroll', () => {
@@ -488,12 +632,403 @@ it('keeps the active section while scrolling through a long section until the ne
 });
 
 describe('route fragment', () => {
+  it.each([
+    'canDeactivate',
+    'canActivate',
+    'canMatch',
+    'resolver',
+    'loadComponent',
+    'loadChildren',
+  ] as const)('does not cancel a user navigation waiting in %s', async (phase) => {
+    const gate = createNavigationGate();
+    const { harness, host, router } = await setupPendingNavigation(phase, gate);
+    const cancellations: NavigationCancel[] = [];
+    router.events.subscribe((event) => {
+      if (event instanceof NavigationCancel) cancellations.push(event);
+    });
+
+    const navigation = router.navigateByUrl('/b');
+    await gate.started;
+    host.fragment.set('during-navigation');
+    TestBed.tick();
+    gate.complete(true);
+    await navigation;
+    await harness.fixture.whenStable();
+
+    expect(router.url).toBe('/b');
+    expect(cancellations).toHaveLength(0);
+  });
+
+  it('re-publishes after an actual CanDeactivate cancellation', async () => {
+    const gate = createNavigationGate();
+    const { harness, host, router } = await setupPendingNavigation('canDeactivate', gate);
+    const canceledNavigation = firstValueFrom(
+      router.events.pipe(
+        filter((event): event is NavigationCancel => event instanceof NavigationCancel),
+      ),
+    );
+    const fragmentNavigation = firstValueFrom(
+      router.events.pipe(
+        filter(
+          (event): event is NavigationEnd =>
+            event instanceof NavigationEnd && event.urlAfterRedirects === '/a#after-cancel',
+        ),
+      ),
+    );
+    const navigation = router.navigateByUrl('/b');
+    await gate.started;
+    host.fragment.set('after-cancel');
+    TestBed.tick();
+    gate.complete(false);
+
+    expect(await navigation).toBe(false);
+    await canceledNavigation;
+    await fragmentNavigation;
+    await harness.fixture.whenStable();
+
+    expect(router.url).toBe('/a#after-cancel');
+  });
+
+  it('does not supersede the navigation started by a guard redirect', async () => {
+    const redirectGate = createNavigationGate();
+    const targetGate = createNavigationGate();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'a', component: FragmentNavigationHost },
+          {
+            path: 'b',
+            component: PendingNavigationTarget,
+            canActivate: [
+              () => {
+                const router = inject(Router);
+                redirectGate.start();
+                return redirectGate.result.then(() => router.parseUrl('/c'));
+              },
+            ],
+          },
+          {
+            path: 'c',
+            component: PendingNavigationTarget,
+            canActivate: [
+              () => {
+                targetGate.start();
+                return targetGate.result;
+              },
+            ],
+          },
+        ]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const host = await harness.navigateByUrl('/a#original', FragmentNavigationHost);
+    const router = TestBed.inject(Router);
+    const cancellations: NavigationCancel[] = [];
+    router.events.subscribe((event) => {
+      if (event instanceof NavigationCancel) cancellations.push(event);
+    });
+
+    const navigation = router.navigateByUrl('/b');
+    await redirectGate.started;
+    host.fragment.set('during-redirect');
+    TestBed.tick();
+    redirectGate.complete(true);
+    await targetGate.started;
+    await Promise.resolve();
+    targetGate.complete(true);
+    await navigation;
+    await harness.fixture.whenStable();
+
+    expect(router.url).toBe('/c');
+    expect(cancellations.map((event) => event.code)).toEqual([NavigationCancellationCode.Redirect]);
+  });
+
+  it('starts the deferred same-path fragment navigation after the real query navigation ends', async () => {
+    const gate = createNavigationGate();
+    let waitForQueryChange = false;
+    const sourceRoute: Route = {
+      path: 'a',
+      component: FragmentNavigationHost,
+      runGuardsAndResolvers: 'always',
+      canActivate: [
+        () => {
+          if (!waitForQueryChange) return true;
+          gate.start();
+          return gate.result;
+        },
+      ],
+    };
+    TestBed.configureTestingModule({ providers: [provideRouter([sourceRoute])] });
+    const harness = await RouterTestingHarness.create();
+    const host = await harness.navigateByUrl('/a?before=1#original', FragmentNavigationHost);
+    const router = TestBed.inject(Router);
+    const events: AngularRouterEvent[] = [];
+    router.events.subscribe((event) => events.push(event));
+    const fragmentNavigation = firstValueFrom(
+      router.events.pipe(
+        filter(
+          (event): event is NavigationEnd =>
+            event instanceof NavigationEnd && event.urlAfterRedirects === '/a?after=2#after-query',
+        ),
+      ),
+    );
+
+    waitForQueryChange = true;
+    const queryNavigation = router.navigateByUrl('/a?after=2#original');
+    await gate.started;
+    host.fragment.set('after-query');
+    TestBed.tick();
+    gate.complete(true);
+    await queryNavigation;
+    await fragmentNavigation;
+    await harness.fixture.whenStable();
+
+    const userNavigationEnd = events.findIndex(
+      (event) =>
+        event instanceof NavigationEnd && event.urlAfterRedirects === '/a?after=2#original',
+    );
+    const fragmentNavigationStart = events.findIndex(
+      (event) => event instanceof NavigationStart && event.url === '/a?after=2#after-query',
+    );
+    expect(router.url).toBe('/a?after=2#after-query');
+    expect(fragmentNavigationStart).toBeGreaterThan(userNavigationEnd);
+    expect(events.some((event) => event instanceof NavigationCancel)).toBe(false);
+  });
+
+  it('recognizes info and state origin tags but treats popstate as external', () => {
+    const tag = { __ngx_magic_scroll_origin: 'scroll-spy' };
+    expect(isLibraryNavigation(undefined)).toBe(false);
+    expect(isLibraryNavigation(null)).toBe(false);
+    expect(isLibraryNavigation(createNavigation('/a', { info: tag }))).toBe(true);
+    expect(isLibraryNavigation(createNavigation('/a', { info: 'external', state: tag }))).toBe(
+      true,
+    );
+    expect(
+      isLibraryNavigation(
+        createNavigation('/a', { info: { __ngx_magic_scroll_origin: 'external' }, state: {} }),
+      ),
+    ).toBe(false);
+    expect(isLibraryNavigation(createNavigation('/a', { state: tag }, 'popstate'))).toBe(false);
+    expect(isLibraryNavigation(createNavigation('/a', { info: tag }, 'popstate'))).toBe(true);
+  });
+
+  it('starts only one navigation when its own currentNavigation signal changes', async () => {
+    TestBed.configureTestingModule({
+      providers: [provideRouter([{ path: 'a', component: FragmentNavigationHost }])],
+    });
+    const harness = await RouterTestingHarness.create();
+    const host = await harness.navigateByUrl('/a#original', FragmentNavigationHost);
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl');
+    const completion = firstValueFrom(
+      router.events.pipe(
+        filter(
+          (event): event is NavigationEnd =>
+            event instanceof NavigationEnd && event.urlAfterRedirects === '/a#single-update',
+        ),
+      ),
+    );
+
+    host.fragment.set('single-update');
+    TestBed.tick();
+    await completion;
+    await harness.fixture.whenStable();
+
+    expect(router.url).toBe('/a#single-update');
+    expect(navigateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['cancel', (url: string) => new NavigationCancel(1, url, 'guard rejected')],
+    ['error', (url: string) => new NavigationError(1, url, new Error('resolver failed'))],
+    ['skipped', (url: string) => new NavigationSkipped(1, url, 'same URL')],
+  ] as const)('publishes the latest deferred fragment after %s', async (_name, createEvent) => {
+    const { fragment, router } = setupWriter();
+    router.currentNavigation.set(createNavigation(router.url));
+
+    fragment.set('first');
+    TestBed.tick();
+    fragment.set('latest');
+    TestBed.tick();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+
+    // Like the real Router, the navigation is no longer current once its terminal event is seen.
+    router.currentNavigation.set(null);
+    router.events.next(createEvent(router.url));
+    await Promise.resolve();
+
+    expect(router.createUrlTree).toHaveBeenCalledExactlyOnceWith(
+      [],
+      expect.objectContaining({ fragment: 'latest', queryParamsHandling: 'preserve' }),
+    );
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith(
+      'tree',
+      expect.objectContaining({
+        replaceUrl: true,
+        info: { __ngx_magic_scroll_origin: 'scroll-spy' },
+      }),
+    );
+  });
+
+  it('publishes after NavigationEnd on the same path despite query changes', async () => {
+    const { fragment, router } = setupWriter();
+    router.currentNavigation.set(createNavigation(router.url));
+    fragment.set('deferred');
+    TestBed.tick();
+
+    router.currentNavigation.set(null);
+    router.events.next(new NavigationEnd(1, '/a?new=2', '/a?new=2'));
+    await Promise.resolve();
+
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith(
+      'tree',
+      expect.objectContaining({ info: { __ngx_magic_scroll_origin: 'scroll-spy' } }),
+    );
+    expect(router.createUrlTree).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ fragment: 'deferred' }),
+    );
+  });
+
+  it('drops a deferred fragment when NavigationEnd changes the path', async () => {
+    const { fragment, router } = setupWriter();
+    router.currentNavigation.set(createNavigation(router.url));
+    fragment.set('deferred');
+    TestBed.tick();
+
+    router.events.next(new NavigationEnd(1, '/b?new=2', '/b?new=2'));
+    await Promise.resolve();
+
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('keeps deferring when another user navigation starts before the queued publication', async () => {
+    const { fragment, router } = setupWriter();
+    router.currentNavigation.set(createNavigation(router.url));
+    fragment.set('deferred');
+    TestBed.tick();
+
+    router.events.next(new NavigationCancel(1, router.url, 'redirect'));
+    router.currentNavigation.set(createNavigation('/a?redirected=1'));
+    await Promise.resolve();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+
+    router.currentNavigation.set(null);
+    router.events.next(new NavigationEnd(2, '/a?redirected=1', '/a?redirected=1'));
+    await Promise.resolve();
+
+    expect(router.navigateByUrl).toHaveBeenCalledOnce();
+    expect(router.createUrlTree).toHaveBeenCalledExactlyOnceWith(
+      [],
+      expect.objectContaining({ fragment: 'deferred' }),
+    );
+  });
+
+  it('does not overwrite a fragment supplied by the completed user navigation', async () => {
+    const { fragment, routeFragment, router } = setupWriter();
+    router.currentNavigation.set(createNavigation(router.url));
+    fragment.set('deferred');
+    TestBed.tick();
+    routeFragment.next('user-fragment');
+    TestBed.tick();
+
+    router.events.next(new NavigationEnd(1, '/a#user-fragment', '/a#user-fragment'));
+    await Promise.resolve();
+
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a queued fragment after the owning view is destroyed', async () => {
+    const routeFragment = new BehaviorSubject<string | null>('original');
+    const router = createWriterRouter();
+    TestBed.configureTestingModule({
+      imports: [FragmentWriterHost],
+      providers: [
+        {
+          provide: ActivatedRoute,
+          useValue: { fragment: routeFragment, snapshot: { fragment: 'original' } },
+        },
+        { provide: Router, useValue: router },
+      ],
+    });
+    const fixture = TestBed.createComponent(FragmentWriterHost);
+    fixture.detectChanges();
+    router.currentNavigation.set(createNavigation(router.url));
+    fixture.componentInstance.fragment.set('deferred');
+    TestBed.tick();
+    router.events.next(new NavigationSkipped(1, router.url, 'same URL'));
+    fixture.destroy();
+    await Promise.resolve();
+
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it.each(['currentNavigation', 'events'] as const)(
+    'warns once and retains immediate writes when router mock lacks %s',
+    (missingField) => {
+      const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const completeRouter = createWriterRouter();
+      const router =
+        missingField === 'currentNavigation'
+          ? { ...completeRouter, currentNavigation: undefined }
+          : { ...completeRouter, events: undefined };
+      const routeFragment = new BehaviorSubject<string | null>('original');
+      TestBed.configureTestingModule({
+        providers: [
+          {
+            provide: ActivatedRoute,
+            useValue: { fragment: routeFragment, snapshot: { fragment: 'original' } },
+          },
+          { provide: Router, useValue: router },
+        ],
+      });
+      const fragment = TestBed.runInInjectionContext(linkedRouteFragment);
+      TestBed.tick();
+      fragment.set('first');
+      TestBed.tick();
+      fragment.set('second');
+      TestBed.tick();
+
+      expect(warning).toHaveBeenCalledExactlyOnceWith(
+        expect.stringContaining('protection against in-flight navigation is disabled'),
+      );
+      expect(completeRouter.navigateByUrl).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('publishes safely when the global history object is unavailable', () => {
+    vi.stubGlobal('history', undefined);
+    const { fragment, router } = setupWriter();
+
+    fragment.set('server-rendered');
+    TestBed.tick();
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith(
+      'tree',
+      expect.objectContaining({ state: { __ngx_magic_scroll_origin: 'scroll-spy' } }),
+    );
+  });
+
+  it('continues publishing while a library-tagged navigation is active', () => {
+    const { fragment, router } = setupWriter();
+    router.currentNavigation.set(
+      createNavigation(router.url, { info: { __ngx_magic_scroll_origin: 'scroll-spy' } }),
+    );
+
+    fragment.set('internal-replacement');
+    TestBed.tick();
+
+    expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
+  });
+
   it('reads external changes, preserves parameters, tags internal navigation, clears fragments and handles failed navigation', async () => {
     const fragment = new BehaviorSubject<string | null>('a');
     const snapshot = { fragment: 'a' };
     const router = {
       createUrlTree: vi.fn(() => 'tree'),
       navigateByUrl: vi.fn(() => Promise.resolve(true)),
+      currentNavigation: () => null,
+      events: new Subject<RouterEvent>(),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -539,6 +1074,8 @@ describe('route fragment', () => {
     const router = {
       createUrlTree: vi.fn(() => 'tree'),
       navigateByUrl: vi.fn(() => Promise.resolve(true)),
+      currentNavigation: () => null,
+      events: new Subject<RouterEvent>(),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -611,7 +1148,12 @@ describe('directives', () => {
         { provide: ActivatedRoute, useValue: { fragment: routeFragment, snapshot: { fragment } } },
         {
           provide: Router,
-          useValue: { createUrlTree: vi.fn(), navigateByUrl: vi.fn(() => Promise.resolve(true)) },
+          useValue: {
+            createUrlTree: vi.fn(),
+            navigateByUrl: vi.fn(() => Promise.resolve(true)),
+            currentNavigation: () => null,
+            events: new Subject<RouterEvent>(),
+          },
         },
       ],
     });
