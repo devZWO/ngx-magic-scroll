@@ -75,6 +75,8 @@ Navigation, reload and the first successful asynchronous load use `behavior.rest
 
 Scroll-spy and `scrollTo()` URL updates wait while a user Router navigation is in flight, preventing the fragment write from canceling pending guards, resolvers or lazy loading. If that navigation is canceled, the latest fragment is restored; after a successful navigation it is written only when the route path stays the same and no new fragment was chosen.
 
+The destination of a deliberate navigation (`scrollTo()`, deep link or router fragment) stays active while it overlaps the reading area, even when it cannot reach the reading line (for example the last section at the end of the document or a section with a nested anchor near its top). User scroll intent, any other scroll that moves the settled destination (for example a scrollbar drag), or leaving the reading area releases it. `scroll.discardPendingPublication()` drops a scheduled scroll-spy URL update, and `scroll.suspendPublication()` pauses URL publication until the returned resume function is called.
+
 ## Anchor selection and explicit anchors
 
 By default (`anchorSelection: 'all'`), all descendant IDs participate unless constrained by `anchorPrefixes`.

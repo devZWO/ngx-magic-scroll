@@ -23,6 +23,8 @@ After scrolling settles, the region determines which section the user is current
 
 ### Evaluation Priority
 
+A destination of a deliberate navigation takes precedence over this geometry while it remains visible; see [Deliberate destinations stay active while visible](#deliberate-destinations-stay-active-while-visible).
+
 1. **Fully Contained Sections (Full Containment Elevation)**: If an upcoming section is 100% visible within the reading area (`top >= topBoundary - 1` and `bottom <= bottomBoundary + 1`), it becomes active immediately—even if a small tail of the previous section is still visible at the top. If multiple sections are fully visible, the topmost fully contained section is selected.
 2. **Tall Section Reading Retention (Reading Line Fallback)**: For sections that are taller than the viewport (or long multi-paragraph articles), the section remains active while scrolling through its body (`top <= triggerLine + 1`) until a subsequent section crosses the trigger line or becomes fully visible.
 3. **Top of Page Fallback**: When scrolled above all anchors, the first anchor is selected.
@@ -98,6 +100,41 @@ graph TD
     DestinationQueue -->|Wait for Source Ready & DOM| ScrollExec[ScrollService.scroll]
 ```
 
+## Deliberate destinations stay active while visible
+
+The destination of a deliberate navigation — a successful `scrollTo()`, the restored entry fragment, or a subsequent router fragment navigation — stays the active anchor while it overlaps the visible reading area (between `topBoundary` and `bottomBoundary`). Scroll-spy publication, `liveAnchor`-based preservation and the end of a smooth navigation use this destination instead of the geometric evaluation above.
+
+This matters whenever a requested target cannot reach the reading line:
+
+- **End of the document**: the last section is shorter than the remaining viewport, so the container stops at its maximum scroll position. Without this rule, an earlier, fully contained anchor would replace the requested fragment after `debounceTime`.
+- **Nested anchors**: a section contains an anchor near its top. If the section settles slightly above the reading line, its fully contained child would otherwise win.
+- **Repeated activation**: activating the same destination again does not create another history entry because the fragment is still the destination.
+
+While a smooth navigation is still moving, the destination is kept even if it is not visible yet. Once the navigation has settled, its displacement from the top boundary is recorded. The destination is released by user scroll intent (`wheel`, `touchstart`, `touchmove` or scroll keys outside editable controls), by any other scroll that moves it more than one pixel relative to that recorded position (for example dragging the scrollbar or setting `scrollTop` programmatically), once it no longer overlaps the reading area, or when the fragment is cleared. Layout preservation restores the recorded displacement and therefore keeps the destination. A released destination does not become active again merely by scrolling back into view; the regular evaluation applies until the next deliberate navigation.
+
+A deliberate navigation also discards a scroll-spy publication that was scheduled by earlier scroll events and has not been committed yet.
+
+Try it in the [Destinations demo](https://devzwo.github.io/ngx-magic-scroll/demo/#/destinations): open the last section or the tall section with its nested anchor and watch the URL fragment stay on the destination until you scroll.
+
+## Pausing or discarding scroll-spy publication
+
+Applications that orchestrate a navigation over several steps, for example closing a dialog before routing to a target, can control the debounced publication explicitly:
+
+- `discardPendingPublication()` drops a publication that is scheduled but not yet committed. Later scroll events schedule publications again.
+- `suspendPublication()` stops the scroll spy from writing the fragment until the returned resume function is called. Suspensions nest, the resume function is idempotent, and resuming does not publish immediately; the next scroll event schedules a regular debounced publication. `scrollTo()` and position preservation keep working while publication is suspended.
+
+```ts
+const resume = scroll.suspendPublication();
+try {
+  await firstValueFrom(dialogRef.afterClosed());
+  await router.navigate([], { fragment: 'project-12', queryParamsHandling: 'preserve' });
+} finally {
+  resume();
+}
+```
+
+The Destinations demo also contains a simulated overlay flow: uncheck “Protect with `suspendPublication()`”, run it and press Back to see the scroll spy replace the source history entry; with protection, Back returns to the section you started from.
+
 ## URL updates yield to in-flight navigations
 
 A scroll-spy update or `scrollTo()` can become due while the Router is still resolving a user navigation. The fragment writer does not start a competing navigation in that case: it retains the latest requested fragment and lets the user's navigation finish without `SupersededByNewNavigation`.
@@ -149,4 +186,4 @@ If clicking an item should define the return target, record that item's fragment
 - [Return to a list](../../recipes/return-to-list/) implements the history sequence and an explicit return link.
 - [Anchor navigation](../../recipes/scroll-to-anchor/) builds navigation highlighting and per-action overrides.
 - [Scroll regions and anchor identity](../anchors/) explains eligible targets and shared fragment state.
-- [MagicScrollDirective](../../api/classes/magicscrolldirective/) documents `activeAnchor()` and `scrollTo()`.
+- [MagicScrollDirective](../../api/classes/magicscrolldirective/) documents `activeAnchor()`, `scrollTo()`, `discardPendingPublication()` and `suspendPublication()`.

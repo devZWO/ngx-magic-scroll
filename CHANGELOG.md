@@ -1,5 +1,26 @@
 # Changelog
 
+## Release v1.2.0 (2026-11-11)
+
+### Features
+
+- Add `MagicScrollDirective.discardPendingPublication()` to drop a debounced scroll-spy URL update that has not been committed yet.
+- Add `MagicScrollDirective.suspendPublication()` to pause scroll-spy URL publication during application-orchestrated navigation; it returns an idempotent resume function, and suspensions nest.
+- Add the **Destinations** demo (`#/destinations`) showing kept destinations at the end of the document and with nested anchors, pausing and discarding publication, and an overlay flow with and without `suspendPublication()`; covered by cross-browser E2E tests.
+
+### Bug Fixes & Behavioral Changes
+
+- Fix #19: keep the destination of a deliberate navigation (`scrollTo()`, restored entry fragment, router fragment navigation) active while it overlaps the reading area. The scroll spy no longer replaces it with an earlier anchor at the end of the document, with a fully contained nested anchor, or after a repeated activation that would otherwise add a history entry. User scroll intent, any other scroll that moves the settled destination (for example a scrollbar drag), or leaving the reading area releases the destination.
+- Discard a scheduled scroll-spy publication when a deliberate navigation starts, so stale scroll events cannot overwrite the new destination.
+
+### Deprecations
+
+- None.
+
+### Breaking Changes
+
+- None. Applications that relied on the scroll spy selecting an earlier anchor right after a deliberate navigation now keep the requested fragment until the user scrolls.
+
 ## Release v1.1.2 (2026-11-09)
 
 ### Bug Fixes & Behavioral Changes
