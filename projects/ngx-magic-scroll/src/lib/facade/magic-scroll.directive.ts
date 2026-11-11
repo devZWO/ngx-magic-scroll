@@ -208,6 +208,24 @@ export class MagicScrollDirective {
   /** Pending destination anchor awaiting data readiness or DOM rendering. */
   private pendingDestination: string | null = this.initialAnchor ?? null;
 
+  /**
+   * Destination of the most recent deliberate navigation (`scrollTo`, deep link or external fragment).
+   * It wins over geometry-based scroll-spy selection while it overlaps the visible reading area, so a
+   * target that cannot reach the reading line (end of document, nested anchors) is not replaced.
+   * Released by user scroll intent, by any other scroll that moves it relative to the reading line
+   * (scrollbar drag, programmatic scrolling) or once the destination leaves the reading area.
+   */
+  private stickyDestination: string | null = null;
+
+  /**
+   * Displacement of {@link stickyDestination} from the top boundary once its navigation settled;
+   * `undefined` until the destination was first measured inside the reading area.
+   */
+  private stickyDisplacement: number | undefined;
+
+  /** Active {@link suspendPublication} holds; URL publication is skipped while greater than zero. */
+  private publicationSuspensions = 0;
+
   /** Tracks the last fragment processed from route fragment synchronization. */
   private lastProcessedFragment: string | null | undefined = undefined;
 
@@ -251,7 +269,8 @@ export class MagicScrollDirective {
     destroyRef.onDestroy(() => {
       this.detachListeners();
       this.document.defaultView?.removeEventListener('resize', this.onResize);
-      clearTimeout(this.timer);
+      this.discardPendingPublication();
+      this.stickyDestination = null;
       this.cancelDestinationRetry();
       this.cancelScheduledFocus();
       this.cancelLayoutPreservation();
@@ -397,6 +416,8 @@ export class MagicScrollDirective {
 
         if (frag) {
           if (!isLocalWrite && !this.isInternalNavigation()) {
+            this.discardPendingPublication();
+            this.stickyDestination = null;
             this.cancelScheduledFocus();
             this.cancelLayoutPreservation();
             this.cancelSmoothNavigation();
@@ -421,6 +442,7 @@ export class MagicScrollDirective {
           this.pendingLayoutPreservation = false;
           this.savedDisplacement = 0;
           this.pendingDestination = null;
+          this.stickyDestination = null;
           this.cancelDestinationRetry();
         }
       });
@@ -429,12 +451,59 @@ export class MagicScrollDirective {
     // Phase 4: Scroll revision debounced publication to URL fragment.
     // Re-evaluates nearest anchor and commits it to the URL router after debounce delay.
     effect(() => {
-      if (!this.scrollRevision()) return;
-      const anchor = this.calculateNearestAnchor();
+      if (!this.scrollRevision() || this.publicationSuspensions > 0) return;
+      const anchor = this.resolveActiveAnchor();
       if (anchor) {
         this.setLocalFragment(anchor);
       }
     });
+  }
+
+  /**
+   * Discards a debounced scroll-spy URL publication that has not been committed yet.
+   *
+   * @remarks
+   * Use this before orchestrating a navigation of your own (for example closing a dialog and then
+   * routing to a target) so that a publication scheduled by earlier scroll events cannot replace the
+   * new destination. Later scroll events schedule publications again as usual.
+   * Deliberate navigations through {@link scrollTo} or the router discard pending publications automatically.
+   */
+  discardPendingPublication(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  /**
+   * Suspends scroll-spy URL publication until the returned resume function is called.
+   *
+   * @returns An idempotent function that releases this suspension.
+   *
+   * @remarks
+   * While at least one suspension is active, the debounced scroll-spy does not write the URL fragment;
+   * `liveAnchor`-based position preservation and {@link scrollTo} keep working. Suspensions nest. Pending
+   * publications are discarded when suspending; resuming does not publish immediately — the next scroll
+   * event schedules a regular debounced publication. Always resume, for example in a `finally` block.
+   *
+   * @example
+   * ```ts
+   * const resume = scroll.suspendPublication();
+   * try {
+   *   await dialogRef.afterClosed();
+   *   await router.navigate([], { fragment: 'project-2' });
+   * } finally {
+   *   resume();
+   * }
+   * ```
+   */
+  suspendPublication(): () => void {
+    this.discardPendingPublication();
+    this.publicationSuspensions++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.publicationSuspensions--;
+    };
   }
 
   /**
@@ -475,6 +544,7 @@ export class MagicScrollDirective {
   scrollTo(anchor: string, options: MagicScrollToOptions = {}): boolean {
     this.refreshTarget();
     this.cancelScheduledFocus();
+    this.discardPendingPublication();
     const clean = anchor.replace(/^#/, '');
     const targetEl = this.anchors().find((el) => el.id === clean);
     const willScroll = targetEl ? this.willScroll(targetEl, options) : false;
@@ -493,6 +563,7 @@ export class MagicScrollDirective {
     });
     if (executed) {
       this.liveAnchor.set(clean);
+      this.holdDestination(clean);
       this.savedDisplacement = 0;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
@@ -530,6 +601,8 @@ export class MagicScrollDirective {
       this.beginSmoothNavigation();
     }
     if (this.execute(this.pendingDestination, { behavior, displacement: 0 })) {
+      this.discardPendingPublication();
+      this.holdDestination(clean);
       this.savedDisplacement = 0;
       this.pendingDestination = null;
       this.cancelDestinationRetry();
@@ -651,6 +724,65 @@ export class MagicScrollDirective {
       bottomOffset: this.options().bottomOffset,
       activationThreshold: this.options().activationThreshold,
     });
+  }
+
+  /**
+   * Resolves the anchor to publish: the deliberate destination while it overlaps the reading area,
+   * otherwise the geometry-based nearest anchor. Releases a destination that is no longer visible.
+   */
+  private resolveActiveAnchor(): string | undefined {
+    const sticky = this.stickyDestination;
+    if (sticky) {
+      // A smooth navigation is still moving towards the destination, which may not be visible yet.
+      if (this.isSmoothNavigating) return sticky;
+      const displacement = this.measureVisibleDisplacement(sticky);
+      if (displacement !== undefined && this.isHeldAt(displacement)) return sticky;
+      this.stickyDestination = null;
+    }
+    return this.calculateNearestAnchor();
+  }
+
+  /**
+   * Marks the anchor as the deliberate destination and records its settled displacement.
+   * During smooth navigation the displacement is recorded again when the navigation ends.
+   */
+  private holdDestination(anchorId: string): void {
+    this.stickyDestination = anchorId;
+    this.stickyDisplacement = this.measureVisibleDisplacement(anchorId);
+  }
+
+  /**
+   * Keeps a settled destination only while it has not moved by more than one pixel relative to the
+   * reading line (sub-pixel tolerance). Layout preservation restores this displacement and therefore
+   * keeps the destination.
+   */
+  private isHeldAt(displacement: number): boolean {
+    this.stickyDisplacement ??= displacement;
+    return Math.abs(displacement - this.stickyDisplacement) <= 1;
+  }
+
+  /**
+   * Returns the anchor's displacement from the top boundary when it overlaps the visible reading
+   * area (same boundaries as {@link NearestAnchorProvider}); otherwise `undefined`.
+   */
+  private measureVisibleDisplacement(anchorId: string): number | undefined {
+    const anchorEl = this.anchors().find((el) => el.id === anchorId);
+    if (!anchorEl?.isConnected) return undefined;
+    const scrollable = this.scrollable();
+    const containerRect = scrollable?.getBoundingClientRect();
+    const topBoundary = (containerRect?.top ?? 0) + this.offset();
+    const viewportBottom =
+      containerRect?.bottom ??
+      this.document.defaultView?.innerHeight ??
+      this.document.documentElement.clientHeight;
+    const bottomBoundary = Math.max(
+      topBoundary,
+      viewportBottom - Math.max(0, this.options().bottomOffset),
+    );
+    const anchorRect = anchorEl.getBoundingClientRect();
+    return anchorRect.bottom > topBoundary && anchorRect.top < bottomBoundary
+      ? anchorRect.top - topBoundary
+      : undefined;
   }
 
   /**
@@ -902,6 +1034,7 @@ export class MagicScrollDirective {
   private readonly onUserIntent = () => {
     this.userInterrupted = true;
     this.pendingDestination = null;
+    this.stickyDestination = null;
     this.cancelDestinationRetry();
     this.cancelScheduledFocus();
     this.cancelLayoutPreservation();
@@ -928,6 +1061,7 @@ export class MagicScrollDirective {
     if (isInsideContext) {
       this.userInterrupted = true;
       this.pendingDestination = null;
+      this.stickyDestination = null;
       this.cancelDestinationRetry();
       this.cancelScheduledFocus();
       this.cancelLayoutPreservation();
@@ -977,7 +1111,7 @@ export class MagicScrollDirective {
   private readonly onScroll = () => {
     if (!this.initialized) return;
     if (!this.isSmoothNavigating) {
-      const anchor = this.calculateNearestAnchor();
+      const anchor = this.resolveActiveAnchor();
       if (anchor) {
         this.liveAnchor.set(anchor);
         this.updateSavedDisplacement(anchor);
@@ -1023,7 +1157,10 @@ export class MagicScrollDirective {
    */
   private endSmoothNavigation(): void {
     this.cancelSmoothNavigation();
-    const anchor = this.calculateNearestAnchor();
+    if (this.stickyDestination) {
+      this.holdDestination(this.stickyDestination);
+    }
+    const anchor = this.resolveActiveAnchor();
     if (anchor) {
       this.liveAnchor.set(anchor);
       this.updateSavedDisplacement(anchor);

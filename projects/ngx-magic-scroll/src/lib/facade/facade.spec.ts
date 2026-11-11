@@ -2900,3 +2900,241 @@ describe('subsequent router fragment navigation', () => {
     });
   });
 });
+
+
+describe('deliberate destinations and scroll-spy publication (Issue #19)', () => {
+  const settle = (render: () => void, container: HTMLElement) => {
+    container.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(500);
+    render();
+  };
+
+  it('keeps a deep-linked destination that cannot reach the reading line at the end of the document', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup('item-2');
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    // Maximum scroll reached: the earlier anchor is fully contained above the requested one.
+    region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(110);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(400, 150);
+    host.source.set([1]);
+    render();
+
+    settle(render, container);
+
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+  });
+
+  it('keeps a scrollTo destination whose nested anchor is fully contained', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render, scroll } = setup(null);
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    // The section settles slightly above the reading line; its nested child is fully visible.
+    region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(95, 400);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(130);
+
+    expect(host.scroll().scrollTo('item-1')).toBe(true);
+    render();
+    settle(render, container);
+
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+    const calls = scroll.scroll.mock.calls.length;
+    expect(host.scroll().scrollTo('item-1')).toBe(true);
+    render();
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+    expect(scroll.scroll).toHaveBeenCalledTimes(calls + 1);
+  });
+
+  it('releases the destination on user scroll intent', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup('item-2');
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(400, 150);
+    host.source.set([1]);
+    render();
+
+    container.dispatchEvent(new Event('wheel'));
+    settle(render, container);
+
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+  });
+
+  it('releases the destination once it leaves the reading area', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup('item-2');
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(-400);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+
+    // A released destination does not win again when it scrolls back into view.
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(400);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+  });
+
+  it('releases the destination when a scroll without gesture events moves it, e.g. a scrollbar drag', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup(null);
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(400, 150);
+
+    expect(host.scroll().scrollTo('item-2', { behavior: 'instant' })).toBe(true);
+    // Sub-pixel jitter keeps the destination.
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(400.5, 150);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+
+    region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(130);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(420, 150);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+  });
+
+  it('keeps the destination during smooth navigation and measures it again when it settles', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup(null);
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    const item2 = region.querySelector<HTMLElement>('#item-2')!;
+
+    expect(host.scroll().scrollTo('item-2', { behavior: 'smooth' })).toBe(true);
+    // Mid-animation the destination may still be outside the reading area.
+    item2.getBoundingClientRect = () => rect(-400);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+    item2.getBoundingClientRect = () => rect(160);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+
+    item2.getBoundingClientRect = () => rect(110);
+    container.dispatchEvent(new Event('scrollend'));
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+  });
+
+  it('falls back to geometry when a smooth navigation ends without a destination', () => {
+    vi.useFakeTimers();
+    const { host, container, render, scroll } = setup(null);
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    scroll.scroll.mockReturnValueOnce(false);
+
+    expect(host.scroll().scrollTo('item-2', { behavior: 'smooth' })).toBe(false);
+    container.dispatchEvent(new Event('scrollend'));
+    settle(render, container);
+
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+  });
+
+  it('adopts the first visible displacement when the destination was not measurable at navigation time', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup(null);
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    const item2 = region.querySelector<HTMLElement>('#item-2')!;
+    item2.getBoundingClientRect = () => rect(-400);
+
+    expect(host.scroll().scrollTo('item-2', { behavior: 'instant' })).toBe(true);
+    item2.getBoundingClientRect = () => rect(400, 150);
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+  });
+
+  it('evaluates document scrolling without a window against the root client height', () => {
+    vi.useFakeTimers();
+    const { host, region, render } = setup('item-2');
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.overflow.set('visible');
+    host.source.set([1]);
+    render();
+    const doc = TestBed.inject(DOCUMENT);
+    doc.defaultView?.dispatchEvent(new Event('resize'));
+    region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(0);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(200);
+    const originalView = doc.defaultView;
+    try {
+      // jsdom reports a zero root client height, so the destination is outside the reading area.
+      Object.defineProperty(doc, 'defaultView', { value: null, configurable: true });
+      doc.dispatchEvent(new Event('scroll'));
+    } finally {
+      Object.defineProperty(doc, 'defaultView', { value: originalView, configurable: true });
+    }
+    vi.advanceTimersByTime(500);
+    render();
+
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+  });
+
+  it('discards a publication scheduled before a deliberate navigation', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup(null);
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    container.dispatchEvent(new Event('scroll'));
+
+    // The navigation target leaves the reading area again before the stale timer would fire.
+    expect(host.scroll().scrollTo('item-2')).toBe(true);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(-400);
+    vi.advanceTimersByTime(500);
+    render();
+
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+  });
+
+  it('discardPendingPublication drops only the pending publication', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup('item-1');
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(-400);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(110);
+
+    container.dispatchEvent(new Event('scroll'));
+    host.scroll().discardPendingPublication();
+    vi.advanceTimersByTime(500);
+    render();
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+  });
+
+  it('suspendPublication holds URL publication until every suspension is resumed', () => {
+    vi.useFakeTimers();
+    const { host, container, region, render } = setup('item-1');
+    host.options.set({ anchorPrefixes: ['item-'], debounceTime: 500 });
+    host.source.set([1]);
+    render();
+    region.querySelector<HTMLElement>('#item-1')!.getBoundingClientRect = () => rect(-400);
+    region.querySelector<HTMLElement>('#item-2')!.getBoundingClientRect = () => rect(110);
+
+    const resumeOuter = host.scroll().suspendPublication();
+    const resumeInner = host.scroll().suspendPublication();
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+
+    resumeInner();
+    resumeInner();
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+
+    resumeOuter();
+    expect(host.scroll().activeAnchor()).toBe('item-1');
+    settle(render, container);
+    expect(host.scroll().activeAnchor()).toBe('item-2');
+  });
+});
