@@ -114,6 +114,8 @@ While a smooth navigation is still moving, the destination is kept even if it is
 
 A deliberate navigation also discards a scroll-spy publication that was scheduled by earlier scroll events and has not been committed yet.
 
+Try it in the [Destinations demo](https://devzwo.github.io/ngx-magic-scroll/demo/#/destinations): open the last section or the tall section with its nested anchor and watch the URL fragment stay on the destination until you scroll.
+
 ## Pausing or discarding scroll-spy publication
 
 Applications that orchestrate a navigation over several steps, for example closing a dialog before routing to a target, can control the debounced publication explicitly:
@@ -130,6 +132,8 @@ try {
   resume();
 }
 ```
+
+The Destinations demo also contains a simulated overlay flow: uncheck “Protect with `suspendPublication()`”, run it and press Back to see the scroll spy replace the source history entry; with protection, Back returns to the section you started from.
 
 ## URL updates yield to in-flight navigations
 

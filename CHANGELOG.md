@@ -6,6 +6,7 @@
 
 - Add `MagicScrollDirective.discardPendingPublication()` to drop a debounced scroll-spy URL update that has not been committed yet.
 - Add `MagicScrollDirective.suspendPublication()` to pause scroll-spy URL publication during application-orchestrated navigation; it returns an idempotent resume function, and suspensions nest.
+- Add the **Destinations** demo (`#/destinations`) showing kept destinations at the end of the document and with nested anchors, pausing and discarding publication, and an overlay flow with and without `suspendPublication()`; covered by cross-browser E2E tests.
 
 ### Bug Fixes & Behavioral Changes
 
